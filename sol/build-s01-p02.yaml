@@ -1,0 +1,220 @@
+spack:
+  # CUSTOM MODULES
+  # these modifications blacklist the system compiler to make Core packages
+  # this streamlines the lmod tree that we expose to the users
+  # dev: could have sworn you could not set this, but now it is required or else
+  #   we have collisions
+  view: false
+  concretizer: 
+    unify: false
+    reuse: false
+  modules:
+    # configurations for a module set
+    default:
+      roots:
+        lmod: ./lmod
+      arch_folder: false
+      lmod:
+        core_compilers:
+        - &gcc_back !system_compiler
+        hierarchy:
+        - compiler
+        - mpi
+        exclude:
+        - !cat ['%', *gcc_back]
+        include:
+        - gcc
+        - openmpi
+        - mvapich2
+        - intel-oneapi-compilers
+        exclude_implicits: true
+        projections:
+          all: '{name}/{version}'
+          'openmpi fabrics=none': '{name}-intra/{version}'
+        hash_length: 0
+  # dev: try match to external gcc via: spack compiler find --scope env:build <path>
+  #   however pasting that in here does not help and the command is required
+  # EXTERNAL packages
+  packages:
+    intel:
+      buildable: false
+      externals:
+      - prefix: /share/Apps/intel-oneapi/2021/compiler/2021.3.0/linux/bin/intel64/icc
+        spec: !cat [intel@2021.3.0, !cat ['%', *gcc_back]]
+    slurm:
+      buildable: false
+      externals:
+      - spec: slurm@21.08.8-2
+        prefix: /usr/local/slurm
+    hcoll:
+      buildable: false
+      externals:
+      - spec: hcoll@4.7.3199
+        prefix: /opt/mellanox/hcoll
+    rdma-core:
+      buildable: false
+      externals:
+      # dev: we are faking the spec until we unify everything. got some divergent hashes
+      - spec: rdma-core@35.0%gcc@12.3.0~ipo+static build_system=cmake build_type=Release generator=make arch=linux-centos8-skylake_avx512
+        prefix: /usr
+    # prevent issue with seeming arbitrary recompile of gcc
+    # previously also included the intel oneapi location at 
+    #   compiler/2023.1.0/linux/ but this was not strictly required
+    gcc:
+      buildable: false
+      externals:
+      # match this to the backing compiler from the first step
+      - spec: !cat
+        - gcc@12.3.0 %gcc@8.5.0 ~binutils +bootstrap ~graphite ~nvptx ~piclibs
+            ~profiled~ strip build_system=autotools build_type=RelWithDebInfo 
+            languages=c,c++,fortran
+        - &arch arch=linux-centos8-skylake_avx512
+        # receive this from the command line where you must also use "spack compiler find"
+        prefix: /share/Apps/a/linux-centos8-skylake_avx512/gcc-8.5.0/gcc-12.3.0-3hs5ftxmdz4bs52vlgx54m4w3w4ankmu/
+  # specs in a superspec format, using list of lists
+  specs: !flatten
+  - - - !cat
+        - &gcc gcc@12.3.0
+        - !spec {compiler: *gcc_back}
+  - &gcc-all
+    - !compiled
+      compiler: *gcc
+      specs: !flatten
+      - &gcc-specs
+        - git@2.40.0
+        - cmake@3.26.3
+      # pythons
+      - - &py31010 !cat 
+          - python@3.10.10
+          - &pybase +bz2 +crypt +ctypes +dbm ~debug +libxml2 +lzma ~nis +optimizations +pic
+            +pyexpat +pythoncmd +readline +shared +sqlite3 +ssl +uuid +zlib
+          - *arch
+    # mpi: openmpi 4
+    - - &ompi4 !cat
+        - !cat
+          - &ompi-base openmpi@4.1.5
+          - !spec {compiler: *gcc}
+          - &ompi-variants +atomics ~cuda ~cxx ~cxx_exceptions ~gpfs 
+            ~internal-hwloc ~java +legacylaunchers ~lustre ~memchecker +pmi
+            +romio +rsh ~singularity 
+            fabrics=hcoll,ucx,ofi,cma schedulers=slurm
+          - *arch
+        - !spec {depends: ucx +verbs +cma +dc +dm +knem +mlx5_dv +openmp +rdmacm +thread_multiple +ud}
+        - !spec {depends: slurm +pmix}
+        - !spec {depends: &libfabric 'libfabric fabrics=tcp,verbs,udp,shm,rxd,rxm'}
+        # removed python here because we are pinning against external rdma-core because rpb222
+        #   checked with sma310 and he explained it is available everywhere
+    # depends on ompi4
+    - !loop_depends
+      base: *ompi4
+      specs:
+      - &mkl !cat 
+        - &mkl-base intel-oneapi-mkl@2023.1.0
+        - &mkl-variants +cluster +envmods ~ilp64 +shared threads=tbb
+      - !cat
+        - &gmx-base gromacs@2023.1
+        - &gmx-variants +blas build_system=cmake build_type=Release
+          ~cp2k ~cuda ~cycle_subcounters
+          ~double generator=make +hwloc ~ipo
+          +lapack ~mdrun_only +mpi ~nosuffix ~opencl +openmp 
+          openmp_max_threads=none +shared ~sycl
+        - !spec {depends: *mkl}
+    # mpi: openmpi 4 intranode
+    - - &ompi4-intra !cat
+        - *ompi-base 
+        - &ompi-variants +atomics ~cuda ~cxx ~cxx_exceptions ~gpfs 
+          ~internal-hwloc ~java +legacylaunchers ~lustre ~memchecker +pmi
+          +romio +rsh ~singularity 
+          fabrics=none schedulers=slurm
+        - *arch
+        # issue: cannot stop compiler mixing so we try manually
+        - !spec {depends: slurm +pmix, compiler: *gcc}
+        # issue: cannot stop compiler mixing so we try manually
+        - ^openssh%gcc ^perl%gcc
+    # depends on openmpi-intra and gcc
+    - !loop_depends
+      base: *ompi4-intra
+      specs:
+      - &mkl-ompi-intra !cat
+        - *mkl-base
+        - !spec {compiler: *gcc}
+        - *mkl-variants 
+        # issue: cannot stop compiler mixing so we try manually
+        - ^intel-tbb%gcc ^cmake%gcc ^gmake%gcc ^hwloc%gcc
+      - !cat
+        - *gmx-base
+        - !spec {compiler: *gcc}
+        - *gmx-variants
+        - !spec {depends: *mkl-ompi-intra}
+
+    # mpi: mvapich2 
+    - - &mvapich2-gcc !cat
+        - !cat
+          - mvapich2@2.3.7-1 
+          - &mvapich2-variants ~alloca build_system=autotools ch3_rank_bits=32 
+            ~cuda ~debug fabrics=mrail file_systems=auto 
+            process_managers=hydra threads=single 
+          - *arch
+        - !spec {compiler: *gcc}
+    # depends on mvapich2 and gcc
+    - !loop_depends
+      base: *mvapich2-gcc
+      specs:
+      - !cat 
+        - *mkl-base
+        - !spec {compiler: *gcc}
+        - *mkl-variants 
+        - !spec {depends: *mvapich2-gcc}
+      - !cat
+        - gromacs@2023.1
+        - +blas build_system=cmake build_type=Release
+          ~cp2k ~cuda ~cycle_subcounters
+          ~double generator=make +hwloc ~ipo
+          +lapack ~mdrun_only +mpi ~nosuffix ~opencl +openmp 
+          openmp_max_threads=none +shared ~sycl
+        - !spec {depends: *mkl}
+
+  # intel tree
+  - - - &intel intel-oneapi-compilers@2023.1.0%gcc@8.5.0+envmods build_system=generic arch=linux-centos8-skylake_avx512
+  - &intel-all
+    - !compiled
+      compiler: &intel oneapi@2023.1.0
+      specs: !flatten
+      - &intel-specs
+        - cmake@3.26.3
+      # pythons
+      - - *py31010 
+    # issue with bison, see https://github.com/spack/spack/issues/37172
+    - - git@2.40.0 %oneapi@2023.1.0 ^krb5%oneapi ^bison%gcc 
+    # mpi: mvapich2 
+    - - &mvapich2 !cat
+        - !cat
+          - &mvapich2-base mvapich2@2.3.7-1 
+          - !spec {compiler: *intel}
+        - !cat
+          - &mvapich2-variants ~alloca build_system=autotools ch3_rank_bits=32 
+            ~cuda ~debug fabrics=mrail file_systems=auto 
+            process_managers=hydra threads=single 
+          - *arch
+    # depends on mvapich2
+    - !builder
+      # omit the compiler because our suffix has it
+      tail: *mvapich2
+      suffix: !cat
+      - !spec {compiler: *intel}
+      specs:
+      - &mkl-mvapich2-oneapi !cat 
+        - *mkl
+      - !cat
+        - gromacs@2023.1
+        - !spec {compiler: *intel}
+        - +blas build_system=cmake build_type=Release
+          ~cp2k ~cuda ~cycle_subcounters
+          ~double generator=make +hwloc ~ipo
+          +lapack ~mdrun_only +mpi ~nosuffix ~opencl +openmp 
+          openmp_max_threads=none +shared ~sycl
+        - !spec {depends: *mkl-mvapich2-oneapi}
+  config:
+    build_stage:
+    - $LOCAL_SCRATCH
+    - $TMPDIR

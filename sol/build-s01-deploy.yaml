@@ -1,0 +1,9 @@
+spack:
+  config:
+    install_tree:
+      root: /share/Apps/a
+  modules:
+    default:
+      roots:
+        lmod: /share/Apps/a/mod
+      arch_folder: true
