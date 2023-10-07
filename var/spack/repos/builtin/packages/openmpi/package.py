@@ -937,6 +937,8 @@ class Openmpi(AutotoolsPackage, CudaPackage):
     def with_or_without_hcoll(self, activated):
         if not activated:
             return "--without-hcoll"
+        # rpb222 intervenes because external buildable false prefix not propagating
+        self.spec["hcoll"].prefix = '/opt/mellanox/hcoll'
         return "--with-hcoll={0}".format(self.spec["hcoll"].prefix)
 
     def with_or_without_ucc(self, activated):
@@ -994,6 +996,9 @@ class Openmpi(AutotoolsPackage, CudaPackage):
         config_args.extend(self.enable_or_disable("builtin-atomics", variant="atomics"))
 
         if spec.satisfies("+pmi"):
+            # rpb222 intervenes because the prefix is wrong despite setting an 
+            #   external path with the right prefix in the spack.yaml
+            spec["slurm"].prefix = '/usr/local/slurm'
             config_args.append("--with-pmi={0}".format(spec["slurm"].prefix))
         else:
             config_args.extend(self.with_or_without("pmi"))
