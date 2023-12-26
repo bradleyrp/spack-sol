@@ -20,7 +20,11 @@ class Libxcb(AutotoolsPackage):
     version("1.14", sha256="a55ed6db98d43469801262d81dc2572ed124edc3db31059d4e9916eb9f844c34")
     version("1.13", sha256="0bb3cfd46dbd90066bf4d7de3cad73ec1024c7325a4a0cbf5f4a0d4fa91155fb")
 
-    variant("use_spack_interpreter", default=False, description="Use the interpreter running spack to configure")
+    variant(
+        "use_spack_interpreter",
+        default=False,
+        description="Use the interpreter running spack to configure",
+    )
 
     depends_on("libpthread-stubs")
     depends_on("libxau@0.99.2:")
@@ -45,7 +49,7 @@ class Libxcb(AutotoolsPackage):
 
         return url.format(version)
 
-    when("+use_spack_interpreter")
+    @when("+use_spack_interpreter")
     def setup_build_environment(self, env):
         env.set("PYTHON", sys.executable)
 
