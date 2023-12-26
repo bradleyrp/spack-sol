@@ -42,6 +42,10 @@ class XcbProto(AutotoolsPackage):
         return url.format(version)
 
     when("+use_spack_interpreter")
+    def setup_build_environment(self, env):
+        env.set("PYTHON", sys.executable)
+
+    when("+use_spack_interpreter")
     def configure_args(self):
         return [
             f"--with-python_prefix={sys.prefix}",
