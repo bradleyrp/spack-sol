@@ -27,7 +27,11 @@ class XcbProto(AutotoolsPackage):
     version("1.12", sha256="cfa49e65dd390233d560ce4476575e4b76e505a0e0bacdfb5ba6f8d0af53fd59")
     version("1.11", sha256="d12152193bd71aabbdbb97b029717ae6d5d0477ab239614e3d6193cc0385d906")
 
-    variant("use_spack_interpreter", default=False, description="Use the interpreter running spack to configure")
+    variant(
+        "use_spack_interpreter",
+        default=False,
+        description="Use the interpreter running spack to configure",
+    )
 
     depends_on("python", type="build", when="~use_spack_interpreter")
 
@@ -41,13 +45,10 @@ class XcbProto(AutotoolsPackage):
 
         return url.format(version)
 
-    when("+use_spack_interpreter")
+    @when("+use_spack_interpreter")
     def setup_build_environment(self, env):
         env.set("PYTHON", sys.executable)
 
-    when("+use_spack_interpreter")
+    @when("+use_spack_interpreter")
     def configure_args(self):
-        return [
-            f"--with-python_prefix={self.prefix}",
-            f"--with-python_exec_prefix={self.prefix}",
-        ]
+        return [f"--with-python_prefix={self.prefix}", f"--with-python_exec_prefix={self.prefix}"]
