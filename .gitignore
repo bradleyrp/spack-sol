@@ -513,3 +513,6 @@ $RECYCLE.BIN/
 
 # Windows shortcuts
 *.lnk
+
+# rpb222 additions
+user-cache-*
