@@ -1,0 +1,60 @@
+spack:
+  # CUSTOM MODULES
+  # these modifications blacklist the system compiler to make Core packages
+  # this streamlines the lmod tree that we expose to the users
+  view: false
+  concretizer: 
+    unify: false
+    reuse: false
+  modules:
+    # configurations for a module set
+    default:
+      roots:
+        lmod: ./lmod
+      arch_folder: true
+      lmod:
+        core_compilers:
+        - &gcc_back !system_compiler
+        hierarchy:
+        - compiler
+        - mpi
+        include:
+        - gcc
+        - oneapi
+        exclude:
+        - !cat ['%', *gcc_back]
+        projections:
+          all: '{name}/{version}'
+        hash_length: 0
+  # EXTERNAL packages
+  packages:
+    intel:
+      buildable: false
+      externals:
+      - prefix: /share/Apps/intel-oneapi/2021/compiler/2021.3.0/linux/bin/intel64/icc
+        spec: !cat [intel@2021.3.0, !cat ['%', *gcc_back]]
+    slurm:
+      buildable: false
+      externals:
+      - spec: slurm@21.08.8-2
+        prefix: /usr/local/slurm
+    hcoll:
+      buildable: false
+      externals:
+      - spec: hcoll@4.7.3199
+        prefix: /opt/mellanox/hcoll
+  # staging
+  config:
+    build_stage:
+    - $LOCAL_SCRATCH
+    - $TMPDIR
+  # specs in a superspec format, using list of lists
+  specs: 
+  - - !cat
+      - &gcc gcc@12.3.0
+      - arch=linux-centos8-skylake_avx512
+      - !spec {compiler: *gcc_back}
+  - - !cat
+      - &intel intel-oneapi-compilers@2023.1.0
+      - arch=linux-centos8-skylake_avx512
+      - !spec {compiler: *gcc_back}
