@@ -68,7 +68,11 @@ spack:
         - &arch arch=linux-centos8-skylake_avx512
         # receive this from the command line where you must also use "spack compiler find"
         prefix: /share/Apps/a/linux-centos8-skylake_avx512/gcc-8.5.0/gcc-12.3.0-3hs5ftxmdz4bs52vlgx54m4w3w4ankmu/
+    # see issue https://github.com/spack/spack/issues/37172
+    bison:
+      require: "%gcc"
   # specs in a superspec format, using list of lists
+  # GCC + MPI
   specs: !flatten
   - - - !cat
         - &gcc gcc@12.3.0
@@ -90,6 +94,9 @@ spack:
         - !spec {depends: &libfabric 'libfabric fabrics=tcp,verbs,udp,shm,rxd,rxm'}
         # removed python here because we are pinning against external rdma-core because rpb222
         #   checked with sma310 and he explained it is available everywhere
+        #   on second thought, we are not using the external version anymore, but the hashes end
+        #   up the python that supports this one is going to be used only for MPI since we are
+        #   building the MPI and compilers and then treating them as external for the stack
     # mpi: openmpi 4 intranode
     - - &ompi4-intra !cat
         - *ompi-base 
@@ -100,6 +107,19 @@ spack:
         - *arch
         # see comment above regarding pmix
         - !spec {depends: pmix@3.2.3}
+  # INTEL + MPI
+  - - - !cat
+        - &intel-compiler intel-oneapi-compilers@2023.1.0
+        - arch=linux-centos8-skylake_avx512
+        - !spec {compiler: *gcc_back}
+    # mpi: openmpi 4
+    - - &ompi4 !cat
+        - !cat
+          - &mv2-base mvapich2@2.3.7-1
+          - !spec {compiler: &intel oneapi@2023.1.0}
+          - &mv2-variants ~alloca ~cuda ~debug +regcache +wrapperrpath ch3_rank_bits=32 
+            fabrics=mrail file_systems=auto process_managers=hydra threads=single
+          - *arch
   config:
     build_stage:
     - $LOCAL_SCRATCH
