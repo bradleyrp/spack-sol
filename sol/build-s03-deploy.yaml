@@ -1,0 +1,9 @@
+spack:
+  config:
+    install_tree:
+      root: /share/Apps/ice24v1
+  modules:
+    default:
+      roots:
+        lmod: /share/Apps/ice24v1/lmod
+      arch_folder: true
