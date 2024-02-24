@@ -1,0 +1,139 @@
+spack:
+  # CUSTOM MODULES
+  # these modifications blacklist the system compiler to make Core packages
+  # this streamlines the lmod tree that we expose to the users
+  # dev: could have sworn you could not set this, but now it is required or else
+  #   we have collisions
+  view: false
+  concretizer: 
+    # note that things were unified without asking when we ask for two very
+    #   similar openmpi packages, but we could probably switch to when_possible
+    unify: false
+    reuse: false
+  modules:
+    # configurations for a module set
+    default:
+      roots:
+        lmod: ./lmod
+      arch_folder: false
+      lmod:
+        core_compilers:
+        - &gcc_back !system_compiler
+        hierarchy:
+        - compiler
+        - mpi
+        exclude:
+        - !cat ['%', *gcc_back]
+        include:
+        - gcc
+        - openmpi
+        - intel-oneapi-compilers
+        - intel-oneapi-mpi
+        - mvapich2
+        exclude_implicits: true
+        projections:
+          all: '{name}/{version}'
+          'openmpi fabrics=none': '{name}-intra/{version}'
+        hash_length: 0
+  # dev: try match to external gcc via: spack compiler find --scope env:build <path>
+  #   however pasting that in here does not help and the command is required
+  # EXTERNAL packages
+  # WARNING! Spack does not consider the specs. you must check versions yourself!
+  packages:
+    intel:
+      buildable: false
+      externals:
+      - prefix: /share/Apps/intel-oneapi/2021/compiler/2021.3.0/linux/bin/intel64/icc
+        spec: !cat [intel@2021.3.0, !cat ['%', *gcc_back]]
+    slurm:
+      buildable: false
+      externals:
+      - spec: slurm@21.08.8-2 
+        prefix: /usr/local/slurm
+    # prevent issue with seeming arbitrary recompile of gcc
+    # previously also included the intel oneapi location at 
+    #   compiler/2023.1.0/linux/ but this was not strictly required
+    gcc:
+      buildable: false
+      externals:
+      # match this to the backing compiler from the first step
+      - spec: !cat
+        - gcc@13.2.0 %gcc@8.5.0 ~binutils +bootstrap ~graphite ~nvptx ~piclibs
+          ~profiled ~strip build_system=autotools build_type=RelWithDebInfo
+          languages=c,c++,fortran
+        - &arch arch=linux-centos8-icelake
+        # receive this from the command line where you must also use "spack compiler find"
+        prefix: /share/Apps/ice24v1/linux-centos8-icelake/gcc-8.5.0/gcc-13.2.0-olmxr4tsvnilzqqv65gwuilaaij6hbcc
+    # see issue https://github.com/spack/spack/issues/37172
+    bison:
+      require: "%gcc"
+    # when finding that hcoll must be external in Spack as of v0.21 I saw we have external ucx
+    ucx:
+      buildable: false
+      externals:
+      - spec: ucx@1.16.0
+        prefix: /usr
+  # specs in a superspec format, using list of lists
+  # GCC + MPI
+  specs: !flatten
+  - - - !cat
+        - &gcc gcc@13.2.0
+        - !spec {compiler: *gcc_back}
+    # mpi: openmpi 4
+    - - &ompi4 !cat
+        - !cat
+          - &ompi-base openmpi@4.1.6
+          - !spec {compiler: *gcc}
+          - &ompi-variants +atomics ~cuda ~cxx ~cxx_exceptions ~gpfs 
+            ~internal-hwloc ~java +legacylaunchers ~lustre ~memchecker +pmi
+            +romio +rsh ~singularity 
+            fabrics=ucx,ofi,cma schedulers=slurm
+          - *arch
+        - !spec 
+          # inferring some items from ucx_info -v, see spack.md notes
+          # note sure about opt=3, thread_multiple
+          depends: 
+            ucx@1.16.0
+            ~assertions ~backtrace_detail build_system=autotools
+            +cma ~cuda +dc ~debug +dm ~gdrcopy ~gtest +ib_hw_tm
+            ~java +knem 
+            libs=shared,static
+            ~logging +mlx5_dv +openmp 
+            ~optimizations
+            ~parameter_checking +pic +rc +rdmacm ~rocm simd=auto
+            ~ucg ~ud +verbs +xpmem
+        #!  +verbs +cma +dc +dm +knem +mlx5_dv +openmp +rdmacm +thread_multiple +ud
+        #!  +xpmem
+        # spack does not consider external slurm spec, and pmix for slurm 21 must be 3,
+        #   see https://slurm.schedmd.com/mpi_guide.html#open_mpi
+        - !spec {depends: pmix@3.2.3}
+        #! - !spec {depends: &libfabric 'libfabric fabrics=tcp,verbs,udp,shm,rxd,rxm'}
+        # removed python here because we are pinning against external rdma-core because rpb222
+        #   checked with sma310 and he explained it is available everywhere
+        #   on second thought, we are not using the external version anymore, but the hashes end
+        #   up the python that supports this one is going to be used only for MPI since we are
+        #   building the MPI and compilers and then treating them as external for the stack
+    - - !cat
+        - osu-micro-benchmarks
+        - !spec {depends: *ompi4}
+  # INTEL + MPI
+  - - - !cat
+        - &intel-compiler intel-oneapi-compilers@2023.2.1
+        - *arch
+        - !spec {compiler: *gcc_back}
+    - - &intel-mpi !cat
+        - !cat
+          - &intel-mpi-base intel-oneapi-mpi@2021.10.0
+          - !spec 
+            compiler: &intel oneapi@2023.2.0
+          - &intel-mpi-variants 
+            +envmods ~external-libfabric ~generic-names ~ilp64 
+            build_system=generic 
+          - *arch
+    - - !cat
+        - osu-micro-benchmarks
+        - !spec {depends: *intel-mpi}
+  config:
+    build_stage:
+    - $LOCAL_SCRATCH
+    - $TMPDIR
