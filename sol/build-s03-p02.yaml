@@ -53,31 +53,28 @@ spack:
       externals:
       - spec: hcoll@4.8
         prefix: /opt/mellanox/hpcx/hcoll
-    # prevent issue with seeming arbitrary recompile of gcc
-    # previously also included the intel oneapi location at 
-    #   compiler/2023.1.0/linux/ but this was not strictly required
-    #! gcc:
-    #!   buildable: false
-    #!   externals:
-    #!   # match this to the backing compiler from the first step
-    #!   - spec: !cat
-    #!     - gcc@13.2.0 %gcc@8.5.0 ~binutils +bootstrap ~graphite ~nvptx ~piclibs
-    #!       ~profiled ~strip build_system=autotools build_type=RelWithDebInfo
-    #!       languages=c,c++,fortran
-    #!     - &arch arch=linux-centos8-icelake
-    #!     # receive this from the command line where you must also use "spack compiler find"
-    #!     prefix: /share/Apps/ice24v1/linux-centos8-icelake/gcc-8.5.0/gcc-13.2.0-olmxr4tsvnilzqqv65gwuilaaij6hbcc
+    ucx: 
+      buildable: false
+      externals:
+      - prefix: /opt/mellanox/hpcx/ucx
+        spec: ucx@1.16.0
+        #! ~assertions ~backtrace_detail build_system=autotools
+        #! +cma +cuda +dc ~debug +dm +gdrcopy ~gtest +ib_hw_tm
+        #! ~java +knem libs=shared,static
+        #! ~logging +mlx5_dv +openmp opt=3 +optimizations
+        #! ~parameter_checking +pic +rc +rdmacm ~rocm simd=auto
+        #! +thread_multiple ~ucg +ud +verbs +xpmem
+        #! cuda_arch=89
     # see issue https://github.com/spack/spack/issues/37172
     bison:
       require: "%gcc"
-    # note that our new ice lake nodes have external ucx
-    #   but I found it easy enough to compile our own
-    #   to use the external, match the specs and use prefix /usr
   # specs in a superspec format, using list of lists
   # GCC + MPI
   specs: !flatten
   - - - !cat
-        - &gcc gcc@12.3.0
+        - !cat 
+          - &gcc gcc@12.3.0 
+          - +binutils
         - !spec {compiler: *gcc_back}
         - &arch arch=linux-centos8-icelake
     # gcc CUDA 
@@ -96,20 +93,20 @@ spack:
             fabrics=cma,hcoll,knem,ofi,ucx,verbs,xpmem
             schedulers=slurm
           - *arch
-        - !spec 
-          depends: 
-            &ucx ucx@1.14.1
+        # spack does not consider external slurm spec, and pmix for slurm 21 must be 3,
+        #   see https://slurm.schedmd.com/mpi_guide.html#open_mpi
+        - !spec {depends: pmix@3.2.3}
+        - !spec {depends: *cuda}
+        - !spec
+          depends:
+            ucx@1.16.0
             ~assertions ~backtrace_detail build_system=autotools
-            +cma +cuda +dc ~debug +dm ~gdrcopy ~gtest +ib_hw_tm
+            +cma +cuda +dc ~debug +dm +gdrcopy ~gtest +ib_hw_tm
             ~java +knem libs=shared,static
             ~logging +mlx5_dv +openmp opt=3 +optimizations
             ~parameter_checking +pic +rc +rdmacm ~rocm simd=auto
             +thread_multiple ~ucg +ud +verbs +xpmem
             cuda_arch=89
-        # spack does not consider external slurm spec, and pmix for slurm 21 must be 3,
-        #   see https://slurm.schedmd.com/mpi_guide.html#open_mpi
-        - !spec {depends: pmix@3.2.3}
-        - !spec {depends: *cuda}
     # include microbenchmarks with the MPI build-s03-p02.yaml stage for quick testing
     - - !cat
         - osu-micro-benchmarks
