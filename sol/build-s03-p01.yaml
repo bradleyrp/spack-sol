@@ -46,7 +46,7 @@ spack:
   # specs in a superspec format, using list of lists
   specs: 
   - - !cat
-      - &gcc gcc@13.2.0 
+      - &gcc gcc@12.3.0
       - &arch arch=linux-centos8-icelake
       - !spec {compiler: *gcc_back}
   - - !cat
