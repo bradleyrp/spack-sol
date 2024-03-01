@@ -24,6 +24,7 @@ spack:
         - mpi
         exclude:
         - !cat ['%', *gcc_back]
+        - lmod
         include:
         - gcc
         - openmpi
@@ -68,11 +69,19 @@ spack:
   # GCC + MPI
   specs: !flatten
   - - - !cat
-        - !cat 
-          - &gcc gcc@12.3.0 
-          - +binutils
+        - &gcc gcc@12.3.0 
         - !spec {compiler: *gcc_back}
         - &arch arch=linux-centos8-icelake
+    # systemwide Lmod
+    # note: we got errors on make man_pages until we unset LMOD_PACKAGE_PATH in the
+    #   shell where we were running spack install because this was pointing to a 
+    #   previous LMOD and it was lacking some master something package. for reference
+    #   this took about an hour to solve after manually turning the crank in the
+    #   spack stage directory
+    - !compiled
+      compiler: !cat [*gcc, *arch]
+      specs:
+      - &cuda lmod@8.7.24 auto_swap=true build_system=autotools 
     # gcc CUDA 
     - !compiled
       compiler: !cat [*gcc, *arch]
@@ -110,14 +119,14 @@ spack:
   # INTEL + MPI
   # note that I installed the compilers at one version and oneapi is detected at another
   - - - !cat
-        - &intel-compiler intel-oneapi-compilers@2023.2.1
+        - &intel-compiler intel-oneapi-compilers@2023
         - *arch
         - !spec {compiler: *gcc_back}
     - - &intel-mpi !cat
         - !cat
           - &intel-mpi-base intel-oneapi-mpi@2021.10.0
           - !spec 
-            compiler: &intel oneapi@2023.2.0
+            compiler: &intel oneapi@2023
           - &intel-mpi-variants 
             +envmods ~external-libfabric ~generic-names ~ilp64 
             build_system=generic 

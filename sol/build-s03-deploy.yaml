@@ -1,3 +1,5 @@
+# redirect the build location to an install prefix
+#   which should match the osp shortname in "osp target"
 spack:
   config:
     install_tree:

@@ -6,6 +6,8 @@ spack:
   #   we have collisions
   view: false
   concretizer: 
+    # note that things were unified without asking when we ask for two very
+    #   similar openmpi packages, but we could probably switch to when_possible
     unify: false
     reuse: false
   modules:
@@ -22,140 +24,119 @@ spack:
         - mpi
         exclude:
         - !cat ['%', *gcc_back]
+        - lmod
         include:
         - gcc
+        - openmpi
         - intel-oneapi-compilers
+        - intel-oneapi-mpi
         exclude_implicits: true
         projections:
           all: '{name}/{version}'
-          openmpi fabrics=none: 'openmpi-intra/{version}'
+          'openmpi fabrics=none': '{name}-intra/{version}'
         hash_length: 0
-        # modifications for alignment with the convention on Sol, which includes
-        #   the LURC DIR variables below
-        all:
-          conflict: []
-          load: []
-          autoload: 'direct'
-          environment:
-            set:
-              'LURC_{name}_DIR': '{prefix}'
-      # recover the LD_LIBRARY_PATH 
-      #   note that I am not sure if this is important for 
-      prefix_inspections:
-        ./lib64: [LD_LIBRARY_PATH]  
-        ./lib: [LD_LIBRARY_PATH]
-        ./include: [C_INCLUDE_PATH,CPLUS_INCLUDE_PATH]
-  # dev: try match to external gcc via: spack compiler find --scope env:build <path>
-  #   however pasting that in here does not help and the command is required
-  # EXTERNAL packages
-  # WARNING! Spack does not consider the specs. you must check versions yourself!
-  packages:
-    slurm:
-      buildable: false
-      externals:
-      - spec: slurm@21.08.8-2
-        prefix: /usr/local/slurm
-    # prevent issue with seeming arbitrary recompile of gcc
-    # previously also included the intel oneapi location at 
-    #   compiler/2023.1.0/linux/ but this was not strictly required
-    gcc:
-      buildable: false
-      externals:
-      # match this to the backing compiler from the first step
-      - spec: !cat
-        - gcc@13.2.0 %gcc@8.5.0 ~binutils +bootstrap ~graphite ~nvptx ~piclibs
-          ~profiled ~strip build_system=autotools build_type=RelWithDebInfo 
-          languages=c,c++,fortran 
-        - &arch arch=linux-centos8-icelake 
-        # receive this from the command line where you must also use "spack compiler find"
-        prefix: /share/Apps/ice24v1/linux-centos8-icelake/gcc-8.5.0/gcc-13.2.0-olmxr4tsvnilzqqv65gwuilaaij6hbcc
-    openmpi:
-      buildable: false
-      externals:
-      - spec: &ompi openmpi@4.1.6%gcc@13.2.0+atomics~cuda~cxx~cxx_exceptions~gpfs~internal-hwloc~internal-pmix~java+legacylaunchers~lustre~memchecker~openshmem~orterunprefix+pmi+romio+rsh~singularity+static+vt+wrapper-rpath build_system=autotools fabrics=cma,ofi,ucx schedulers=slurm arch=linux-centos8-icelake
-        prefix: /share/Apps/build/ice24v1/marianatrenchbuildsite/linux-centos8-icelake/gcc-13.2.0/openmpi-4.1.6-7oex3u3quv5xqzamwp7skwralrenx6bp
-    intel-oneapi-mpi:
-      buildable: false
-      externals:
-      - spec: &impi intel-oneapi-mpi@2021.10.0%oneapi@2023.2.0+envmods~external-libfabric~generic-names~ilp64 build_system=generic arch=linux-centos8-icelake
-        prefix: /share/Apps/build/ice24v1/marianatrenchbuildsite/linux-centos8-icelake/oneapi-2023.2.0/intel-oneapi-mpi-2021.10.0-umeoaxviwhl3naan6wtfayripnetzoei
   config:
     build_stage:
     - $LOCAL_SCRATCH
     - $TMPDIR
-  # specs in a superspe +cufftmpc format, using list of lists
-  # EXTERNAL: compilers
+  # EXTERNAL packages
+  packages:
+    slurm:
+      buildable: false
+      externals:
+      - spec: slurm@21.08.8-2 
+        prefix: /usr/local/slurm
+    hcoll:
+      buildable: false
+      externals:
+      - spec: hcoll@4.8
+        prefix: /opt/mellanox/hpcx/hcoll
+    ucx: 
+      buildable: false
+      externals:
+      # we defer the specs to the consumer, openmpi below, where we
+      #   specify all of the features we think that the rpm provides
+      # note that spack does not detect the specs, so you need to
+      #   figure these out yourself before pinning against external
+      # note that ucx is also in /opt/mellanox/hpcx/ucx but this
+      #   causes a weird error (cannot find -liberty)
+      - prefix: /usr
+        spec: ucx@1.16.0
+    # see issue https://github.com/spack/spack/issues/37172
+    bison:
+      require: "%gcc"
+  # specs in a superspec format, using list of lists
+  # GCC + MPI
   specs: !flatten
   - - - !cat
-        - &gcc gcc@13.2.0
+        - &gcc gcc@12.3.0 
         - !spec {compiler: *gcc_back}
-  - - - &intel-compiler !cat
-        - intel-oneapi-compilers@2023.2.1 
-        - +envmods build_system=generic 
-        - !spec {compiler: *gcc_back}
-        - *arch
-  # EXTERNAL: MPI
-  - - - *ompi
-  - - - *impi
-  # depends on gcc 
-  - &gcc-all
+        - &arch arch=linux-centos8-icelake
+    # systemwide Lmod
+    # note: we got errors on make man_pages until we unset LMOD_PACKAGE_PATH in the
+    #   shell where we were running spack install because this was pointing to a 
+    #   previous LMOD and it was lacking some master something package. for reference
+    #   this took about an hour to solve after manually turning the crank in the
+    #   spack stage directory
     - !compiled
       compiler: !cat [*gcc, *arch]
-      specs: !flatten
-      - &compiled-packages
-        - &perl perl@5.38.0 +cpanm+open+shared+threads build_system=generic
-        - !cat
-          - cmake@3.27.7
-          - !spec {depends: *perl}
-        - zlib@1.3 +optimize+pic+shared build_system=makefile
-        - bzip2@1.0.8 ~debug~pic+shared build_system=generic
-        - !cat &hdf5 
-          - hdf5@1.14.3 +cxx +fortran +hl 
-        - !cat &netcdf-c
-          - netcdf-c@4.9.2
-          - !spec {depends: *hdf5}
-        - !cat
-          - netcdf-cxx4@4.3.1
-          - !spec {depends: *netcdf-c}
-  # MKL for gcc
-  - - !compiled
-      compiler: !cat [*gcc, *arch]
       specs:
-      - &tbb
-        intel-tbb@2021.9.0 
-        ~ipo+shared+tm build_system=cmake build_type=Release 
-        cxxstd=default generator=make
-      - &mkl !cat 
-        - &mkl-base intel-oneapi-mkl@2023.2.0
-        - &mkl-variants +cluster +envmods ~ilp64 +shared threads=tbb
-        - !spec {depends: *tbb}
-  # gcc CUDA 
-  - - !compiled
+      - &cuda lmod@8.7.24 auto_swap=true build_system=autotools 
+    # gcc CUDA 
+    - !compiled
       compiler: !cat [*gcc, *arch]
       specs:
       - &cuda cuda@12.2.1
-      - &nvhpc nvhpc@23.9 +blas +lapack +mpi
-  # depends on gcc, openmpi, mkl
-  - - !builder
-      suffix: !spec 
-        depends: *ompi
-      specs:
-      - !cat
-        - &gmx-base gromacs@2023.3
-        - &gmx-variants build_system=cmake build_type=Release
-          ~cp2k ~cycle_subcounters
-          ~double generator=make +hwloc ~ipo
-          ~mdrun_only +mpi ~nosuffix ~opencl +openmp 
-          openmp_max_threads=none +shared ~sycl
-          +cuda +cufftmp
-          cuda_arch=89
+    # mpi: openmpi 4
+    - - &ompi4 !cat
+        - !cat
+          - &ompi-base openmpi@4.1.6
+          - !spec {compiler: *gcc}
+          - &ompi-variants +atomics +cuda ~cxx ~cxx_exceptions ~gpfs 
+            ~internal-hwloc ~java +legacylaunchers ~lustre ~memchecker +pmi
+            +romio +rsh ~singularity 
+            fabrics=cma,hcoll,knem,ucx,xpmem
+            schedulers=slurm
+          - *arch
+        # spack does not consider external slurm spec, and pmix for slurm 21 must be 3,
+        #   see https://slurm.schedmd.com/mpi_guide.html#open_mpi
+        - !spec {depends: pmix@3.2.3}
         - !spec {depends: *cuda}
-        - !spec {depends: *nvhpc}
-      - !cat
-        - hypre@2.20.0 +openmp
-      tail: *mkl
-  # depends on gcc, openmpi
-  - - !loop_depends
-      base: *ompi
+        - !spec
+          depends:
+            ucx@1.16.0
+            ~assertions ~backtrace_detail build_system=autotools
+            +cma +cuda +dc ~debug +dm +gdrcopy ~gtest +ib_hw_tm
+            ~java +knem libs=shared,static
+            ~logging +mlx5_dv +openmp opt=3 +optimizations
+            ~parameter_checking +pic +rc +rdmacm ~rocm simd=auto
+            +thread_multiple ~ucg +ud +verbs +xpmem
+            cuda_arch=89
+    # include microbenchmarks with the MPI build-s03-p02.yaml stage for quick testing
+    - - !cat
+        - osu-micro-benchmarks
+        - !spec {depends: *ompi4}
+  # INTEL + MPI
+  # note that I installed the compilers at one version and oneapi is detected at another
+  - - - !cat
+        - &intel-compiler intel-oneapi-compilers@2023
+        - *arch
+        - !spec {compiler: *gcc_back}
+    - - &intel-mpi !cat
+        - !cat
+          - &intel-mpi-base intel-oneapi-mpi@2021.10.0
+          - !spec 
+            compiler: &intel oneapi@2023
+          - &intel-mpi-variants 
+            +envmods ~external-libfabric ~generic-names ~ilp64 
+            build_system=generic 
+          - *arch
+    # Intel CUDA 
+    - !compiled
+      compiler: !cat [*intel, *arch]
       specs:
-      - osu-micro-benchmarks@7.1-1
+      - &cuda cuda@12.2.1
+    # include microbenchmarks with the MPI build-s03-p02.yaml stage for quick testing
+    - - !cat
+        - osu-micro-benchmarks
+        - !spec {depends: *intel-mpi}
