@@ -81,7 +81,7 @@ spack:
     - !compiled
       compiler: !cat [*gcc, *arch]
       specs:
-      - &cuda lmod@8.7.24 auto_swap=true build_system=autotools 
+      - lmod@8.7.24 auto_swap=true build_system=autotools 
     # gcc CUDA 
     - !compiled
       compiler: !cat [*gcc, *arch]
