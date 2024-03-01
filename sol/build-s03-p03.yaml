@@ -65,23 +65,57 @@ spack:
     # see issue https://github.com/spack/spack/issues/37172
     bison:
       require: "%gcc"
+#!    # pinning prebuilt codes
+#!    gcc:
+#!      buildable: false
+#!      externals:
+#!      - prefix: /share/Apps/build/ice24v1/marianatrenchbuildsite/linux-centos8-icelake/gcc-8.5.0/gcc-12.3.0-bsunvrosg6jgrb6oov6phkp5ptzuqqly
+#!        spec: gcc@12.3.0%gcc@8.5.0~binutils+bootstrap~graphite~nvptx~piclibs~profiled~strip build_system=autotools build_type=RelWithDebInfo languages=c,c++,fortran arch=linux-centos8-icelake
+    intel-oneapi-compilers:
+      buildable: false
+      externals:
+      - prefix: /share/Apps/build/ice24v1/marianatrenchbuildsite/linux-centos8-icelake/gcc-8.5.0/intel-oneapi-compilers-2023.2.1-xzbykavhswznxe3a7rnwfociigkqbbe5
+        spec: intel-oneapi-compilers@2023.2.1%gcc@8.5.0+envmods build_system=generic arch=linux-centos8-icelake
+#!    openmpi:
+#!      buildable: false
+#!      externals:
+#!      - prefix: /share/Apps/build/ice24v1/marianatrenchbuildsite/linux-centos8-icelake/gcc-12.3.0/openmpi-4.1.6-sesoyvfctcfshpreipyaaiftjrf6dwxq
+#!        spec: !cat
+#!        - &ompi openmpi@4.1.6+atomics+cuda~cxx~cxx_exceptions~gpfs~internal-hwloc~internal-pmix~java+legacylaunchers~lustre~memchecker~openshmem~orterunprefix+pmi+romio+rsh~singularity+static+vt+wrapper-rpath build_system=autotools cuda_arch=none fabrics=cma,hcoll,knem,ucx,xpmem schedulers=slurm arch=linux-centos8-icelake
+#!        - !spec {'compiler': gcc@12.3.0}
+#!    intel-oneapi-mpi:
+#!      buildable: false
+#!      externals:
+#!      - prefix: /share/Apps/build/ice24v1/marianatrenchbuildsite/linux-centos8-icelake/oneapi-2023.2.0/intel-oneapi-mpi-2021.10.0-umeoaxviwhl3naan6wtfayripnetzoei
+#!        spec: intel-oneapi-mpi@2021.10.0%oneapi@2023.2.0+envmods~external-libfabric~generic-names~ilp64 build_system=generic arch=linux-centos8-icelake
+#!    cuda:
+#!      buildable: false
+#!      externals:
+#!      - prefix: /share/Apps/build/ice24v1/marianatrenchbuildsite/linux-centos8-icelake/gcc-12.3.0/cuda-12.2.1-dxwakxauuyioent6cxlfd6lqwmwiyjec 
+#!        spec: cuda@12.2.1%gcc@12.3.0~allow-unsupported-compilers~dev build_system=generic arch=linux-centos8-icelake
+#!      - prefix: /share/Apps/build/ice24v1/marianatrenchbuildsite/linux-centos8-icelake/oneapi-2023.2.0/cuda-12.2.1-abvxym3jb7qg22hrhho5kzyzy325nylx
+#!        spec: cuda@12.2.1%oneapi@2023.2.0~allow-unsupported-compilers~dev build_system=generic arch=linux-centos8-icelake 
   # specs in a superspec format, using list of lists
   # GCC + MPI
   specs: !flatten
   - - - !cat
-        - &gcc gcc@12.3.0 
+        - &gcc gcc@12.3.0
         - !spec {compiler: *gcc_back}
-        - &arch arch=linux-centos8-icelake
-    # systemwide Lmod
-    # note: we got errors on make man_pages until we unset LMOD_PACKAGE_PATH in the
-    #   shell where we were running spack install because this was pointing to a 
-    #   previous LMOD and it was lacking some master something package. for reference
-    #   this took about an hour to solve after manually turning the crank in the
-    #   spack stage directory
+  # BUILD verbatim on top of build-s03-p02.yaml
+  # depends on gcc 
+  - &gcc-all
     - !compiled
-      compiler: !cat [*gcc, *arch]
-      specs:
-      - &cuda lmod@8.7.24 auto_swap=true build_system=autotools 
+      compiler: !cat
+      - &gcc gcc@12.3.0 
+      - &arch arch=linux-centos8-icelake
+      specs: !flatten
+      - &compiled-specs
+        - &perl perl@5.38.0 +cpanm+open+shared+threads build_system=generic
+        - !cat
+          - cmake@3.27.7 
+          - !spec {depends: *perl}
+        - zlib@1.3 +optimize+pic+shared build_system=makefile
+        - bzip2@1.0.8 ~debug~pic+shared build_system=generic
     # gcc CUDA 
     - !compiled
       compiler: !cat [*gcc, *arch]
@@ -112,10 +146,6 @@ spack:
             ~parameter_checking +pic +rc +rdmacm ~rocm simd=auto
             +thread_multiple ~ucg +ud +verbs +xpmem
             cuda_arch=89
-    # include microbenchmarks with the MPI build-s03-p02.yaml stage for quick testing
-    - - !cat
-        - osu-micro-benchmarks
-        - !spec {depends: *ompi4}
   # INTEL + MPI
   # note that I installed the compilers at one version and oneapi is detected at another
   - - - !cat
@@ -136,7 +166,41 @@ spack:
       compiler: !cat [*intel, *arch]
       specs:
       - &cuda cuda@12.2.1
-    # include microbenchmarks with the MPI build-s03-p02.yaml stage for quick testing
-    - - !cat
-        - osu-micro-benchmarks
-        - !spec {depends: *intel-mpi}
+  # depends on gcc, openmpi
+  - - !loop_depends
+      base: *ompi4
+      specs: &mpi-general 
+      - osu-micro-benchmarks@7.1-1
+      - !cat &hdf5 
+        - hdf5@1.14.1-2 +cxx +fortran +hl 
+      - !cat &netcdf-c
+        - netcdf-c@4.9.2
+        - !spec {depends: *hdf5}
+      - !cat
+        - netcdf-cxx4@4.3.1
+        - !spec {depends: *netcdf-c}
+      - &mkl !cat 
+        - &mkl-base intel-oneapi-mkl@2023.2.0
+        - &mkl-variants +cluster +envmods ~ilp64 +shared threads=tbb mpi_family=openmpi
+  # depends on intel
+  - - !compiled
+      compiler: *intel
+      specs: *compiled-specs 
+  # depends on intel, intel-mpi
+  - - !loop_depends
+      base: *intel-mpi
+      specs: *mpi-general 
+  # depends on gcc, openmpi, mkl, cuda
+  - - !builder
+      suffix: !spec {depends: *ompi4}
+      specs:
+      - !cat
+        - &gmx-base gromacs@2023.3
+        - &gmx-variants build_system=cmake build_type=Release
+          ~cp2k +cuda cuda_arch=89 ~cycle_subcounters
+          ~double +hwloc ~intel_provided_gcc ~mdrun_only
+          +mpi ~nosuffix ~opencl +openmp openmp_max_threads=none 
+          ~relaxed_double_precision
+          +shared ~sycl
+        - !spec {depends: *cuda}
+      tail: *mkl
