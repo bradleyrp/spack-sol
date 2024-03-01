@@ -15,8 +15,9 @@ local mapT =
       -- beware use "%" to escape "-"
       ['/Core$']   = "core",
       ['/gcc/12.3.0$'] = "gcc (12.3)",
-      ['/z/gcc%-12.3.0/openmpi/4.1.5$'] = "gcc (12.3) + openmpi (4.1)",
-      ['/z/gcc%-12.3.0/openmpi%-intra/4.1.5$'] = "gcc (12.3) + openmpi (4.1, intranode)",
+      ['/z/gcc%-12.3.0/openmpi/4.1.6$'] = "gcc (12.3) + openmpi (4.1)",
+      ['/oneapi%-2023.2.0/intel%-oneapi%-mpi/2021.10.0$'] = "Intel (2023) + Intel MPI (2021)",
+      ['/oneapi/2023.2.0$'] = "Intel (2023)",
       ['toolchain$'] = "toolchain",
       ['ext$'] = "external",
    },
