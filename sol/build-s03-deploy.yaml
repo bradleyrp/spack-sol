@@ -8,4 +8,4 @@ spack:
     default:
       roots:
         lmod: /share/Apps/ice24v1/lmod
-      arch_folder: true
+      arch_folder: false
