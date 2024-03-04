@@ -25,15 +25,28 @@ spack:
         exclude:
         - !cat ['%', *gcc_back]
         - lmod
+        - cmake
         include:
         - gcc
         - openmpi
         - intel-oneapi-compilers
         - intel-oneapi-mpi
+        # exclude cmake above and include this one because we design it to be reused with
+        #   intel-oneapi-mkl that supports R to reduce redundancy
+        - cmake ^curl +libidn2
         exclude_implicits: true
+        core_specs:
+        - py-numpy
+        - build_system=generic ^python
+        - py-pip
+        - py-setuptools
         projections:
+          py-numpy: &py-mpi-pro 'py-{^python.version}-{compiler.name}-{compiler.version}-{^mpi.name}-{^mpi.version}/{name}/{version}'
+          build_system=generic ^python: &py-pro 'py-{^python.version}-{compiler.name}-{compiler.version}/{name}/{version}' 
+          py-pip: *py-pro
+          py-setuptools: *py-pro
+          ^r: 'r-{^r.version}/{name}/{version}'
           all: '{name}/{version}'
-          'openmpi fabrics=none': '{name}-intra/{version}'
         hash_length: 0
   config:
     build_stage:
@@ -69,31 +82,31 @@ spack:
 #!    gcc:
 #!      buildable: false
 #!      externals:
-#!      - prefix: /share/Apps/build/ice24v1/marianatrenchbuildsite/linux-centos8-icelake/gcc-8.5.0/gcc-12.3.0-bsunvrosg6jgrb6oov6phkp5ptzuqqly
+#!      - prefix: /share/Apps/ice24v1/linux-centos8-icelake/gcc-8.5.0/gcc-12.3.0-bsunvrosg6jgrb6oov6phkp5ptzuqqly 
 #!        spec: gcc@12.3.0%gcc@8.5.0~binutils+bootstrap~graphite~nvptx~piclibs~profiled~strip build_system=autotools build_type=RelWithDebInfo languages=c,c++,fortran arch=linux-centos8-icelake
     intel-oneapi-compilers:
       buildable: false
       externals:
-      - prefix: /share/Apps/build/ice24v1/marianatrenchbuildsite/linux-centos8-icelake/gcc-8.5.0/intel-oneapi-compilers-2023.2.1-xzbykavhswznxe3a7rnwfociigkqbbe5
+      - prefix: /share/Apps/ice24v1/linux-centos8-icelake/gcc-8.5.0/intel-oneapi-compilers-2023.2.1-xzbykavhswznxe3a7rnwfociigkqbbe5
         spec: intel-oneapi-compilers@2023.2.1%gcc@8.5.0+envmods build_system=generic arch=linux-centos8-icelake
 #!    openmpi:
 #!      buildable: false
 #!      externals:
-#!      - prefix: /share/Apps/build/ice24v1/marianatrenchbuildsite/linux-centos8-icelake/gcc-12.3.0/openmpi-4.1.6-sesoyvfctcfshpreipyaaiftjrf6dwxq
+#!      - prefix: /share/Apps/ice24v1/linux-centos8-icelake/gcc-12.3.0/openmpi-4.1.6-sesoyvfctcfshpreipyaaiftjrf6dwxq 
 #!        spec: !cat
 #!        - &ompi openmpi@4.1.6+atomics+cuda~cxx~cxx_exceptions~gpfs~internal-hwloc~internal-pmix~java+legacylaunchers~lustre~memchecker~openshmem~orterunprefix+pmi+romio+rsh~singularity+static+vt+wrapper-rpath build_system=autotools cuda_arch=none fabrics=cma,hcoll,knem,ucx,xpmem schedulers=slurm arch=linux-centos8-icelake
 #!        - !spec {'compiler': gcc@12.3.0}
 #!    intel-oneapi-mpi:
 #!      buildable: false
 #!      externals:
-#!      - prefix: /share/Apps/build/ice24v1/marianatrenchbuildsite/linux-centos8-icelake/oneapi-2023.2.0/intel-oneapi-mpi-2021.10.0-umeoaxviwhl3naan6wtfayripnetzoei
+#!      - prefix: /share/Apps/ice24v1/linux-centos8-icelake/oneapi-2023.2.0/intel-oneapi-mpi-2021.10.0-umeoaxviwhl3naan6wtfayripnetzoei 
 #!        spec: intel-oneapi-mpi@2021.10.0%oneapi@2023.2.0+envmods~external-libfabric~generic-names~ilp64 build_system=generic arch=linux-centos8-icelake
 #!    cuda:
 #!      buildable: false
 #!      externals:
-#!      - prefix: /share/Apps/build/ice24v1/marianatrenchbuildsite/linux-centos8-icelake/gcc-12.3.0/cuda-12.2.1-dxwakxauuyioent6cxlfd6lqwmwiyjec 
+#!      - prefix: /share/Apps/ice24v1/linux-centos8-icelake/gcc-12.3.0/cuda-12.2.1-dxwakxauuyioent6cxlfd6lqwmwiyjec
 #!        spec: cuda@12.2.1%gcc@12.3.0~allow-unsupported-compilers~dev build_system=generic arch=linux-centos8-icelake
-#!      - prefix: /share/Apps/build/ice24v1/marianatrenchbuildsite/linux-centos8-icelake/oneapi-2023.2.0/cuda-12.2.1-abvxym3jb7qg22hrhho5kzyzy325nylx
+#!      - prefix: /share/Apps/ice24v1/linux-centos8-icelake/oneapi-2023.2.0/cuda-12.2.1-abvxym3jb7qg22hrhho5kzyzy325nylx
 #!        spec: cuda@12.2.1%oneapi@2023.2.0~allow-unsupported-compilers~dev build_system=generic arch=linux-centos8-icelake 
   # specs in a superspec format, using list of lists
   # GCC + MPI
@@ -111,16 +124,28 @@ spack:
       specs: !flatten
       - &compiled-specs
         - &perl perl@5.38.0 +cpanm+open+shared+threads build_system=generic
-        - !cat
+        - !cat &cmake
           - cmake@3.27.7 
+          # marking the default so that this cmake propagates to e.g. tbb, mkl
+          #   and compiles a single default tbb, mkl also usable with R
+          - !spec {depends: curl +libidn2}
           - !spec {depends: *perl}
         - zlib@1.3 +optimize+pic+shared build_system=makefile
         - bzip2@1.0.8 ~debug~pic+shared build_system=generic
-    # gcc CUDA 
+        - &openjdk openjdk@11.0.20.1_1
+    # gcc exclusives, CUDA 
     - !compiled
       compiler: !cat [*gcc, *arch]
       specs:
       - &cuda cuda@12.2.1
+      - !cat &openblas
+        - openblas@0.3.24 
+        - ~bignuma ~consistent_fpcsr +fortran ~ilp64 +locking +pic +shared
+      - &tbb !cat
+        - intel-tbb@2021.9.0
+        - ~ipo +shared +tm
+        - !spec {depends: *cmake}
+      - anaconda3@2023.09-0 
     # mpi: openmpi 4
     - - &ompi4 !cat
         - !cat
@@ -182,6 +207,58 @@ spack:
       - &mkl !cat 
         - &mkl-base intel-oneapi-mkl@2023.2.0
         - &mkl-variants +cluster +envmods ~ilp64 +shared threads=tbb mpi_family=openmpi
+        - !spec {depends: *tbb}
+  # gcc python
+  - - !compiled
+      compiler: !cat [*gcc, *arch]
+      specs:
+      - !cat &python
+        - python@3.11.6
+        - build_system=generic +bz2 +ctypes +dbm ~debug +libxml2 +lzma ~nis
+          +optimizations +pic +pyexpat +pythoncmd +readline +shared
+          +sqlite3 +ssl +uuid +zlib
+  - - !loop_depends
+      base: *python
+      specs: &python-support
+      - py-setuptools@68.0.0
+      - py-wheel@0.41.2
+      - py-pip@23.1.2
+      - &py-cython py-cython@3.0.4
+      - &py-cython-29 py-cython@0.29.36
+  - - !compiled
+      compiler: !cat [*gcc, *arch]
+      specs:
+      - !cat &py-numpy
+        - py-numpy@1.26.1
+        - !spec {depends: *mkl}
+        - !spec {depends: *py-cython}
+        - !spec {depends: *python}
+        - !spec {depends: *ompi4}
+  # gcc R
+  - - !compiled
+      compiler: !cat [*gcc, *arch]
+      specs:
+      - !cat &r
+        - r@4.3.0
+        - build_system=autotools +external-lapack
+        # - !spec {depends: *mkl}
+        # dev: tagging the right mkl out of desperation here however this means we
+        #   have to complete this build in stages, which is inelegant
+        # - !spec {depends: intel-oneapi-mkl /yuh2f7r}
+        - !spec {depends: cmake ^curl+libidn2}
+        - !spec {depends: *ompi4}
+        - !spec {depends: *openjdk}
+        # something triggers a change to mkl
+        - !spec {depends: *mkl}
+        - !spec {depends: *tbb}
+  # depends on gcc, openmpi, gcc-exclusive
+  - - !loop_depends
+      base: *ompi4
+      specs: 
+      - !cat &py-mpi4py 
+        - py-mpi4py@3.1.4
+        - !spec {depends: *py-cython-29}
+        - !spec {depends: *python}
   # depends on intel
   - - !compiled
       compiler: *intel
@@ -203,4 +280,25 @@ spack:
           ~relaxed_double_precision
           +shared ~sycl
         - !spec {depends: *cuda}
+      - !cat
+        - &lammps-base lammps@20230802 
+        - &lammps-variant
+          +asphere +body  build_system=cmake build_type=RelWithDebInfo
+          +class2 +colloid +compress +coreshell
+          +cuda  cuda_arch=89 +cuda_mps 
+          +dipole +exceptions ~ffmpeg +granular ~ipo ~jpeg 
+          +kim ~kokkos 
+          +kspace fftw_precision=double
+          lammps_sizes=smallbig 
+          +lib +manybody +mc +misc +molecule +mpi +mpiio +openmp
+          +opt +peri +png +poems +python +qeq +replica +rigid ~rocm +shock +srd +voronoi
+          +atc +h5md +meam +netcdf +phonon +qtb +reaxff
+        - !spec {depends: *python}
+        - !spec {depends: *py-mpi4py}
+        - !spec {depends: *netcdf-c}
+        # dev: errors on kokkos 
+        #   basically cmake says it cannot get the architecture, even though the value is set properly
+        #   - !spec {depends: kokkos +wrapper +cuda cuda_arch=89}
+        - !spec {depends: *cuda}
+        - !spec {depends: *openblas}
       tail: *mkl

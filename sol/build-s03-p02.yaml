@@ -79,9 +79,11 @@ spack:
     #   this took about an hour to solve after manually turning the crank in the
     #   spack stage directory
     - !compiled
-      compiler: !cat [*gcc, *arch]
-      specs:
-      - lmod@8.7.24 auto_swap=true build_system=autotools 
+      compiler: *gcc
+      specs: 
+      - !cat
+        - lmod@8.7.24 auto_swap=true build_system=autotools  
+        - arch=linux-centos8-haswell
     # gcc CUDA 
     - !compiled
       compiler: !cat [*gcc, *arch]
