@@ -222,6 +222,8 @@ spack:
           +sqlite3 +ssl +uuid +zlib
   - - !loop_depends
       base: *python
+      # note that the wheel, pip, setuptools, supporting cython are ad hoc here,
+      #   but for intel below we make them more explicit
       specs: &python-support
       - py-setuptools@68.0.0
       - py-wheel@0.41.2
@@ -331,23 +333,27 @@ spack:
       base: !cat
       - *python-intel
       - !spec {compiler: *intel}
-      specs: *python-support
+      specs: &python-support-intel
+      # suport for py-cython and hence py-numpy and scipy below is standardized
+      #   around a single py-pip, py-wheel, and py-setuptools at maximum version
+      #   for Python 3.8 which is the highest we can go with %oneapi
+      - &py-setuptools-intel py-setuptools@63.4.3
+      - &py-wheel-intel py-wheel@0.37.1
+      - &py-pip-intel py-pip@23.1.2
+      - !cat &py-cython-29-intel
+        - py-cython@0.29.36
+        - !spec {depends: *py-setuptools-intel}
+        - !spec {depends: *py-wheel-intel}
+        - !spec {depends: *py-pip-intel}
+        - !spec {depends: *python-intel}
   - - !compiled
       compiler: !cat [*intel, *arch]
       specs:
       - !cat &py-numpy-intel
         - py-numpy@1.24.4
         - !spec {depends: *mkl}
-        - !spec 
-          depends: &py-cython-29-intel !cat 
-          - *py-cython-29
-          - !spec {depends: py-setuptools@63.4.3}
-        - !spec {depends: *python-intel}
-        - !spec {depends: &py-wheel py-wheel@0.37.1}
+        - !spec {depends: *py-cython-29-intel}
         - !spec {depends: *intel-mpi-base}
       - !cat &py-scipy-intel
         - py-scipy@1.10.1
         - !spec {depends: *py-cython-29-intel}
-        - !spec {depends: *py-numpy-intel}
-        - !spec {depends: *python-intel}
-        - !spec {depends: *py-wheel}
