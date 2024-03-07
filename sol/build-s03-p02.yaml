@@ -51,17 +51,17 @@ spack:
       externals:
       - spec: hcoll@4.8
         prefix: /opt/mellanox/hpcx/hcoll
-    ucx: 
-      buildable: false
-      externals:
-      # we defer the specs to the consumer, openmpi below, where we
-      #   specify all of the features we think that the rpm provides
-      # note that spack does not detect the specs, so you need to
-      #   figure these out yourself before pinning against external
-      # note that ucx is also in /opt/mellanox/hpcx/ucx but this
-      #   causes a weird error (cannot find -liberty)
-      - prefix: /usr
-        spec: ucx@1.16.0
+    #! ucx: 
+    #!   buildable: false
+    #!   externals:
+    #!   # we defer the specs to the consumer, openmpi below, where we
+    #!   #   specify all of the features we think that the rpm provides
+    #!   # note that spack does not detect the specs, so you need to
+    #!   #   figure these out yourself before pinning against external
+    #!   # note that ucx is also in /opt/mellanox/hpcx/ucx but this
+    #!   #   causes a weird error (cannot find -liberty)
+    #!   - prefix: /usr
+    #!     spec: ucx@1.16.0
     # see issue https://github.com/spack/spack/issues/37172
     bison:
       require: "%gcc"
@@ -84,11 +84,22 @@ spack:
       - !cat
         - lmod@8.7.24 auto_swap=true build_system=autotools  
         - arch=linux-centos8-haswell
-    # gcc CUDA 
+    # gcc CUDA etc
     - !compiled
       compiler: !cat [*gcc, *arch]
       specs:
       - &cuda cuda@12.2.1
+      - &ucx !cat
+        - ucx@1.16.0
+        - ~assertions ~backtrace_detail build_system=autotools
+          +cma +cuda +dc ~debug +dm +gdrcopy ~gtest +ib_hw_tm
+          ~java +knem libs=shared,static
+          ~logging +mlx5_dv +openmp opt=3 +optimizations
+          ~parameter_checking +pic +rc +rdmacm ~rocm simd=auto
+          +thread_multiple ~ucg +ud +verbs +xpmem
+          cuda_arch=89
+        - !spec {depends: *cuda}
+        - !spec {depends: hwloc +cuda}
     # mpi: openmpi 4
     - - &ompi4 !cat
         - !cat
@@ -103,17 +114,8 @@ spack:
         # spack does not consider external slurm spec, and pmix for slurm 21 must be 3,
         #   see https://slurm.schedmd.com/mpi_guide.html#open_mpi
         - !spec {depends: pmix@3.2.3}
+        - !spec {depends: *ucx}
         - !spec {depends: *cuda}
-        - !spec
-          depends:
-            ucx@1.16.0
-            ~assertions ~backtrace_detail build_system=autotools
-            +cma +cuda +dc ~debug +dm +gdrcopy ~gtest +ib_hw_tm
-            ~java +knem libs=shared,static
-            ~logging +mlx5_dv +openmp opt=3 +optimizations
-            ~parameter_checking +pic +rc +rdmacm ~rocm simd=auto
-            +thread_multiple ~ucg +ud +verbs +xpmem
-            cuda_arch=89
     # include microbenchmarks with the MPI build-s03-p02.yaml stage for quick testing
     - - !cat
         - osu-micro-benchmarks
