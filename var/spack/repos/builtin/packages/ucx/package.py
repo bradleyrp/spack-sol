@@ -14,12 +14,10 @@ class Ucx(AutotoolsPackage, CudaPackage):
     homepage = "http://www.openucx.org"
     url = "https://github.com/openucx/ucx/releases/download/v1.3.1/ucx-1.3.1.tar.gz"
     git = "https://github.com/openucx/ucx.git"
-    url = "https://github.com/openucx/ucx/releases/download/v1.16.0-rc3/ucx-1.16.0.tar.gz"
 
     maintainers("hppritcha")
 
     # Current
-    version("1.16.0", sha256="eaba919b3a648cb4027128414785ecd426ae6a6b3f9d166e1097e325e90e3778")
     version("1.14.1", sha256="baa0634cafb269a3112f626eb226bcd2ca8c9fcf0fec3b8e2a3553baad5f77aa")
 
     # Still supported
