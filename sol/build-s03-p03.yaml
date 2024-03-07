@@ -36,7 +36,11 @@ spack:
         - cmake ^curl +libidn2
         exclude_implicits: true
         core_specs:
+        # the following are required for "osp modules"
         - build_system=generic ^python
+        - py-numpy
+        - py-setuptools
+        - py-pip
         projections:
           py-numpy: &py-mpi-pro 'py-{^python.version}-{compiler.name}-{compiler.version}-{^mpi.name}-{^mpi.version}/{name}/{version}'
           build_system=generic ^python: &py-pro 'py-{^python.version}-{compiler.name}-{compiler.version}/{name}/{version}' 
