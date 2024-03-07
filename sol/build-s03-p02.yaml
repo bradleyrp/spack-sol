@@ -84,7 +84,7 @@ spack:
       - !cat
         - lmod@8.7.24 auto_swap=true build_system=autotools  
         - arch=linux-centos8-haswell
-    # gcc CUDA etc
+    # gcc CUDA and ucx for openmpi
     - !compiled
       compiler: !cat [*gcc, *arch]
       specs:
@@ -110,6 +110,7 @@ spack:
             +romio +rsh ~singularity 
             fabrics=cma,hcoll,knem,ucx,xpmem
             schedulers=slurm
+            cuda_arch=89
           - *arch
         # spack does not consider external slurm spec, and pmix for slurm 21 must be 3,
         #   see https://slurm.schedmd.com/mpi_guide.html#open_mpi

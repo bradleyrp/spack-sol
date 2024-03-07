@@ -79,8 +79,9 @@ spack:
       externals: 
       # dev: received internal error even though I matched this spec to the openmpi spec at the root level below
       #   error message: internal_error("node belongs to no unification set")
-      - spec: &ompi4 openmpi@4.1.6+atomics+cuda~cxx~cxx_exceptions~gpfs~internal-hwloc~internal-pmix~java+legacylaunchers~lustre~memchecker~openshmem~orterunprefix+pmi+romio+rsh~singularity+static+vt+wrapper-rpath build_system=autotools cuda_arch=none fabrics=cma,hcoll,knem,ucx,xpmem schedulers=slurm 
-        prefix: /share/Apps/ice24v1/linux-centos8-icelake/gcc-12.3.0/openmpi-4.1.6-2n5yy64tla2n4pknnhjcvl7azgelyfeq
+      #   ...!!
+      - spec: openmpi@4.1.6%gcc@12.3.0+atomics+cuda~cxx~cxx_exceptions~gpfs~internal-hwloc~internal-pmix~java+legacylaunchers~lustre~memchecker~openshmem~orterunprefix+pmi+romio+rsh~singularity+static+vt+wrapper-rpath build_system=autotools cuda_arch=89 fabrics=cma,hcoll,knem,ucx,xpmem schedulers=slurm arch=linux-centos8-icelake
+        prefix: /share/Apps/ice24v1/linux-centos8-icelake/gcc-12.3.0/openmpi-4.1.6-as7ukvqajqdnklhutbmh46epxpdg7uel
     intel-oneapi-compilers:
       buildable: false
       externals:
@@ -91,13 +92,18 @@ spack:
       externals:
       - spec: intel-oneapi-mpi@2021.10.0%oneapi@2023.2.0+envmods~external-libfabric~generic-names~ilp64 build_system=generic arch=linux-centos8-icelake
         prefix: /share/Apps/ice24v1/linux-centos8-icelake/oneapi-2023.2.0/intel-oneapi-mpi-2021.10.0-umeoaxviwhl3naan6wtfayripnetzoei
-    cuda:
+#    cuda:
+#      buildable: false
+#      externals:
+#      - spec: cuda@12.2.1%gcc@12.3.0~allow-unsupported-compilers~dev build_system=generic arch=linux-centos8-icelake
+#        prefix: /share/Apps/ice24v1/linux-centos8-icelake/gcc-12.3.0/cuda-12.2.1-dxwakxauuyioent6cxlfd6lqwmwiyjec
+#      - spec: cuda@12.2.1%oneapi@2023.2.0~allow-unsupported-compilers~dev build_system=generic arch=linux-centos8-icelake
+#        prefix: /share/Apps/ice24v1/linux-centos8-icelake/oneapi-2023.2.0/cuda-12.2.1-abvxym3jb7qg22hrhho5kzyzy325nylx
+    ucx:
       buildable: false
       externals:
-      - spec: cuda@12.2.1%gcc@12.3.0~allow-unsupported-compilers~dev build_system=generic arch=linux-centos8-icelake
-        prefix: /share/Apps/ice24v1/linux-centos8-icelake/gcc-12.3.0/cuda-12.2.1-dxwakxauuyioent6cxlfd6lqwmwiyjec
-      - spec: cuda@12.2.1%oneapi@2023.2.0~allow-unsupported-compilers~dev build_system=generic arch=linux-centos8-icelake
-        prefix: /share/Apps/ice24v1/linux-centos8-icelake/oneapi-2023.2.0/cuda-12.2.1-abvxym3jb7qg22hrhho5kzyzy325nylx
+      - spec: ucx@1.16.0%gcc@12.3.0~assertions~backtrace_detail+cma+cuda+dc~debug+dm+examples+gdrcopy~gtest+ib_hw_tm~java+knem~logging+mlx5_dv+openmp+optimizations~parameter_checking+pic+rc+rdmacm~rocm+thread_multiple~ucg+ud+verbs~vfs+xpmem build_system=autotools cuda_arch=89 libs=shared,static opt=3 simd=auto arch=linux-centos8-icelake
+        prefix: /share/Apps/ice24v1/linux-centos8-icelake/gcc-12.3.0/ucx-1.16.0-bnuqwsgvjmmvp54nzwjxxogewl4kgd2c
   # specs in a superspec format, using list of lists
   # GCC + MPI
   specs: !flatten
@@ -123,38 +129,39 @@ spack:
         - zlib@1.3 +optimize+pic+shared build_system=makefile
         - bzip2@1.0.8 ~debug~pic+shared build_system=generic
         - &openjdk openjdk@11.0.20.1_1
-    # gcc CUDA etc
+    # gcc CUDA and ucx for openmpi
     - !compiled
       compiler: !cat [*gcc, *arch]
       specs:
       - &cuda cuda@12.2.1
-      - &ucx !cat
-        - ucx@1.16.0
-        - ~assertions ~backtrace_detail build_system=autotools
-          +cma +cuda +dc ~debug +dm +gdrcopy ~gtest +ib_hw_tm
-          ~java +knem libs=shared,static
-          ~logging +mlx5_dv +openmp opt=3 +optimizations
-          ~parameter_checking +pic +rc +rdmacm ~rocm simd=auto
-          +thread_multiple ~ucg +ud +verbs +xpmem
-          cuda_arch=89
-        - !spec {depends: *cuda}
-        - !spec {depends: hwloc +cuda}
-#!    # mpi: openmpi 4
-#!    - - &ompi4 !cat
-#!        - !cat
-#!          - &ompi-base openmpi@4.1.6
-#!          - !spec {compiler: *gcc}
-#!          - &ompi-variants +atomics +cuda ~cxx ~cxx_exceptions ~gpfs 
-#!            ~internal-hwloc ~java +legacylaunchers ~lustre ~memchecker +pmi
-#!            +romio +rsh ~singularity 
-#!            fabrics=cma,hcoll,knem,ucx,xpmem
-#!            schedulers=slurm
-#!          - *arch
-#!        # spack does not consider external slurm spec, and pmix for slurm 21 must be 3,
-#!        #   see https://slurm.schedmd.com/mpi_guide.html#open_mpi
-#!        - !spec {depends: pmix@3.2.3}
-#!        - !spec {depends: *ucx}
-#!        - !spec {depends: *cuda}
+#      - &ucx !cat
+#        - ucx@1.16.0
+#        - ~assertions ~backtrace_detail build_system=autotools
+#          +cma +cuda +dc ~debug +dm +gdrcopy ~gtest +ib_hw_tm
+#          ~java +knem libs=shared,static
+#          ~logging +mlx5_dv +openmp opt=3 +optimizations
+#          ~parameter_checking +pic +rc +rdmacm ~rocm simd=auto
+#          +thread_multiple ~ucg +ud +verbs +xpmem
+#          cuda_arch=89
+#        - !spec {depends: *cuda}
+#        - !spec {depends: hwloc +cuda}
+    # mpi: openmpi 4
+    - - &ompi4 !cat
+        - !cat
+          - &ompi-base openmpi@4.1.6
+          - !spec {compiler: *gcc}
+          - &ompi-variants +atomics +cuda ~cxx ~cxx_exceptions ~gpfs 
+            ~internal-hwloc ~java +legacylaunchers ~lustre ~memchecker +pmi
+            +romio +rsh ~singularity 
+            fabrics=cma,hcoll,knem,ucx,xpmem
+            schedulers=slurm
+            cuda_arch=89
+          - *arch
+        # spack does not consider external slurm spec, and pmix for slurm 21 must be 3,
+        #   see https://slurm.schedmd.com/mpi_guide.html#open_mpi
+#        - !spec {depends: pmix@3.2.3}
+#        # - !spec {depends: *ucx}
+#        - !spec {depends: *cuda}
     # gcc exclusives 
     - !compiled
       compiler: !cat [*gcc, *arch]
@@ -226,18 +233,18 @@ spack:
       - py-pip@23.1.2
       - &py-cython py-cython@3.0.4
       - &py-cython-29 py-cython@0.29.36
-  - - !compiled
-      compiler: !cat [*gcc, *arch]
-      specs:
-      - !cat &py-numpy
-        - py-numpy@1.26.1
-        - !spec {depends: *mkl}
-        - !spec {depends: *py-cython-29}
-        - !spec {depends: *python}
-        - !spec {depends: *ompi4}
-      - !cat &py-scipy
-        - py-scipy@1.11.3
-        - !spec {depends: *py-numpy}
+#  - - !compiled
+#      compiler: !cat [*gcc, *arch]
+#      specs:
+#      - !cat &py-numpy
+#        - py-numpy@1.26.1
+#        - !spec {depends: *mkl}
+#        - !spec {depends: *py-cython-29}
+#        - !spec {depends: *python}
+#        - !spec {depends: *ompi4}
+#      - !cat &py-scipy
+#        - py-scipy@1.11.3
+#        - !spec {depends: *py-numpy}
   # gcc R
   - - !compiled
       compiler: !cat [*gcc, *arch]
