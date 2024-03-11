@@ -11,6 +11,9 @@ import sys
 
 import llnl.util.tty as tty
 
+# rpb222 mods via https://github.com/spack/spack/issues/14323#issuecomment-569966040
+from spack.util.environment import EnvironmentModifications
+
 from spack.package import *
 
 
@@ -789,6 +792,16 @@ class Openmpi(AutotoolsPackage, CudaPackage):
         env.set("MPICXX", join_path(self.prefix.bin, "mpic++"))
         env.set("MPIF77", join_path(self.prefix.bin, "mpif77"))
         env.set("MPIF90", join_path(self.prefix.bin, "mpif90"))
+        # rpb222 mods via https://github.com/spack/spack/issues/14323#issuecomment-570092589
+        # dev: cannot use these methods. the first points to the ompi prefix, not the hpcx one
+        #   while the second cannot read the tcl modulefile due to syntax error
+        #     env.extend(EnvironmentModifications.from_sourcing_file(self.prefix.modulefiles.hpcx))
+        #     env.extend(EnvironmentModifications.from_sourcing_file('/opt/mellanox/hpcx/modulefiles/hpcx'))
+        # we can prepend the paths ourselves but this hardcodes our connection to hpcx
+        # note that hpcx-mpi is not called in depends_on or we get: 
+        #   Cannot select a single "version" for package "hpcx-mpi"
+        env.prepend_path("LIBRARY_PATH","/opt/mellanox/hpcx/hcoll/lib/")
+        env.prepend_path("LD_LIBRARY_PATH","/opt/mellanox/hpcx/hcoll/lib/")
 
     def setup_dependent_build_environment(self, env, dependent_spec):
         self.setup_run_environment(env)
@@ -877,7 +890,8 @@ class Openmpi(AutotoolsPackage, CudaPackage):
         if not activated:
             return "--without-hcoll"
         # rpb222 intervenes because external buildable false prefix not propagating
-        self.spec["hcoll"].prefix = '/opt/mellanox/hcoll'
+        # then rolls this back
+        #   self.spec["hcoll"].prefix = '/opt/mellanox/hcoll'
         return "--with-hcoll={0}".format(self.spec["hcoll"].prefix)
 
     def with_or_without_xpmem(self, activated):

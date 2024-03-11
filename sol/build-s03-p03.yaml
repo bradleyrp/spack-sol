@@ -36,7 +36,6 @@ spack:
         - cmake ^curl +libidn2
         exclude_implicits: true
         core_specs:
-        - python
         - build_system=generic ^python
         - py-numpy
         - py-pip
@@ -233,18 +232,17 @@ spack:
       - py-pip@23.1.2
       - &py-cython py-cython@3.0.4
       - &py-cython-29 py-cython@0.29.36
-#  - - !compiled
-#      compiler: !cat [*gcc, *arch]
-#      specs:
-#      - !cat &py-numpy
-#        - py-numpy@1.26.1
-#        - !spec {depends: *mkl}
-#        - !spec {depends: *py-cython-29}
-#        - !spec {depends: *python}
-#        - !spec {depends: *ompi4}
-#      - !cat &py-scipy
-#        - py-scipy@1.11.3
-#        - !spec {depends: *py-numpy}
+  - - !loop_depends
+      base: *ompi4
+      specs:
+      - !cat &py-numpy
+        - py-numpy@1.26.1
+        - !spec {depends: *mkl}
+        - !spec {depends: *py-cython-29}
+        - !spec {depends: *python}
+      - !cat &py-scipy
+        - py-scipy@1.11.3
+        - !spec {depends: *py-numpy}
   # gcc R
   - - !compiled
       compiler: !cat [*gcc, *arch]
@@ -324,6 +322,7 @@ spack:
         #   - !spec {depends: kokkos +wrapper +cuda cuda_arch=89}
         - !spec {depends: *cuda}
         - !spec {depends: *openblas}
+        #! next up - hypre@2.20.0 +openmp
       tail: *mkl
   # intel python
   - - !compiled

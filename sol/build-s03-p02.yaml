@@ -51,6 +51,13 @@ spack:
       externals:
       - spec: hcoll@4.8
         prefix: /opt/mellanox/hpcx/hcoll
+    # include hpcx so we can ask openmpi/package.py to ingest the modulefile
+    #   so that mpirun linking hcoll can find libocomps
+    hpcx:
+      buildable: false
+      externals:
+      - spec: hpcx
+        prefix: /opt/mellanox/hpcx
     #! ucx: 
     #!   buildable: false
     #!   externals:
