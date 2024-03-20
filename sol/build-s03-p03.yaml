@@ -35,19 +35,22 @@ spack:
         #   intel-oneapi-mkl that supports R to reduce redundancy
         - cmake ^curl +libidn2
         exclude_implicits: true
+        # whenever a modulefile refers to a custom projection
         core_specs:
-        - build_system=generic ^python
-        - py-numpy
-        - py-pip
-        - py-setuptools
+        - build_system=python_pip ^python
         projections:
-          py-numpy: &py-mpi-pro 'py-{^python.version}-{compiler.name}-{compiler.version}-{^mpi.name}-{^mpi.version}/{name}/{version}'
-          build_system=generic ^python: &py-pro 'py-{^python.version}-{compiler.name}-{compiler.version}/{name}/{version}' 
-          py-pip: *py-pro
-          py-setuptools: *py-pro
+          build_system=python_pip ^python ^mpi: &py-mpi-pro 'py-{^python.version}-{compiler.name}-{compiler.version}-{^mpi.name}-{^mpi.version}/{name}/{version}'
+          build_system=python_pip ^python: &py-pro 'py-{^python.version}-{compiler.name}-{compiler.version}/{name}/{version}' 
           ^r: 'r-{^r.version}/{name}/{version}'
+          namd +cuda: 'namd-gpu/{version}'
           all: '{name}/{version}'
         hash_length: 0
+        # other module extensions in spack/etc/templates/lmod.lua
+        #   for example the defintions of LOCAL_SCRATCH and CEPHFS_SCRATCH
+        all:
+          environment:
+            set:
+              'LURC_{name}_DIR': '{prefix}'
   config:
     build_stage:
     - $LOCAL_SCRATCH
@@ -101,7 +104,9 @@ spack:
     ucx:
       buildable: false
       externals:
-      - spec: ucx@1.16.0%gcc@12.3.0~assertions~backtrace_detail+cma+cuda+dc~debug+dm+examples+gdrcopy~gtest+ib_hw_tm~java+knem~logging+mlx5_dv+openmp+optimizations~parameter_checking+pic+rc+rdmacm~rocm+thread_multiple~ucg+ud+verbs~vfs+xpmem build_system=autotools cuda_arch=89 libs=shared,static opt=3 simd=auto arch=linux-centos8-icelake
+      - spec: !cat
+        - &ucx-external ucx@1.16.0~assertions~backtrace_detail+cma+cuda+dc~debug+dm+examples+gdrcopy~gtest+ib_hw_tm~java+knem~logging+mlx5_dv+openmp+optimizations~parameter_checking+pic+rc+rdmacm~rocm+thread_multiple~ucg+ud+verbs~vfs+xpmem build_system=autotools cuda_arch=89 libs=shared,static opt=3 simd=auto arch=linux-centos8-icelake
+        - '%gcc@12.3.0'
         prefix: /share/Apps/ice24v1/linux-centos8-icelake/gcc-12.3.0/ucx-1.16.0-bnuqwsgvjmmvp54nzwjxxogewl4kgd2c
   # specs in a superspec format, using list of lists
   # GCC + MPI
@@ -274,20 +279,49 @@ spack:
       base: *intel-mpi
       specs: *mpi-general 
   # depends on intel, intel-mpi, exclusives
+  #! icx is not supported in this version. also I get errors with MPI and the docs indicate that
+  #!   you need some kind of icc architecture for openmpi anyway
   #! - - !loop_depends
   #!     base: *intel-mpi
   #!     specs: 
-  #!     # dev: manually downloaded the source and updated Spack
-  #!     #   via vim $(spack location -p amber)/package.py
   #!     - !cat
-  #!       - amber@22 +cuda cuda_arch=89 +mpi ~openmp +update
-  #!       # interestingly, you need to specify intel here or most of
-  #!       #   this tree supporting Amber is %gcc
-  #!       - !spec {compiler: *intel}
-  #!       - !spec {depends: *cuda}
-  #!       - !spec {depends: *hdf5}
-  #!       - !spec {depends: *netcdf-fortran}
-  #!       - !spec {depends: *parallel-netcdf}
+  #!       - namd@2.14 
+  #!       - !cat &namd-support 
+  #!         - +single_node_gpu +cuda cuda_arch=89 interface=tcl
+  #!         - !spec &charmpp-dep
+  #!           depends: !cat
+  #!           - charmpp
+  #!           - +cuda +omp ~papi 
+  #!             backend=multicore
+  #!             +production ~pthreads 
+  #!             +shared +smp ~syncft ~tcp ~tracing 
+  #!             build-target=LIBS build_system=generic
+  #!           - !spec {depends: *cuda}
+  #!         - !spec {depends: *cuda}
+  #!         - !spec {depends: *mkl}
+  #!     - !cat
+  #!       - namd@3.0b3 
+  #!       - *namd-support
+  #!       - *charmpp-dep
+  # depends on intel, intel-mpi, exclusives
+  - - !loop_depends
+      base: *intel-mpi
+      specs: 
+      # dev: manually downloaded the source and updated Spack
+      #   via vim $(spack location -p amber)/package.py
+      #! - !cat
+      #!   - amber@22 +cuda cuda_arch=89 +mpi ~openmp +update
+      #!   # interestingly, you need to specify intel here or most of
+      #!   #   this tree supporting Amber is %gcc
+      #!   - !spec {compiler: *intel}
+      #!   - !spec {depends: *cuda}
+      #!   - !spec {depends: *hdf5}
+      #!   - !spec {depends: *netcdf-fortran}
+      #!   - !spec {depends: *parallel-netcdf}
+      - !cat
+        - sundials@6.6.1 
+        - !spec {depends: *cuda}
+        - !spec {depends: *mkl}
   # depends on gcc, openmpi, mkl, cuda
   - - !builder
       suffix: !spec {depends: *ompi4}
@@ -314,6 +348,7 @@ spack:
           +lib +manybody +mc +misc +molecule +mpi +mpiio +openmp
           +opt +peri +png +poems +python +qeq +replica +rigid ~rocm +shock +srd +voronoi
           +atc +h5md +meam +netcdf +phonon +qtb +reaxff
+          +extra-pair
         - !spec {depends: *python}
         - !spec {depends: *py-mpi4py}
         - !spec {depends: *netcdf-c}
@@ -322,8 +357,33 @@ spack:
         #   - !spec {depends: kokkos +wrapper +cuda cuda_arch=89}
         - !spec {depends: *cuda}
         - !spec {depends: *openblas}
-        #! next up - hypre@2.20.0 +openmp
+      - hypre@2.20.0 +openmp
       tail: *mkl
+  # namd on gcc
+  #! - - !compiled
+  #!     compiler: *gcc
+  #!     specs:
+  #!     - !cat
+  #!       # note that this has been a major struggle
+  #!       - namd@2.14 
+  #!       - !cat &namd-support 
+  #!         - ~single_node_gpu +cuda cuda_arch=89 interface=tcl
+  #!         - !spec {depends: *mkl}
+  #!         - !spec {depends: *ompi4}
+  #!         - !spec {depends: *cuda}
+  #!         # it is extremely counterintuitive but namd +cuda does not use charmpp +cuda
+  #!         #   according to some paper I found
+  #!         # iteratively built this recipe with charmpp last
+  #!         # dev: we do not have pmix.h and backend=ucx pmi=slurmpmi2 says you cannot use
+  #!         #   ompi and you need an impi instead. perhaps mvapich2? in the meantime, doing smp
+  #!         - !spec 
+  #!           depends: !cat
+  #!           # ucx requires pmi but pmi=slurmpmi2 requires a non-openmpi MPI
+  #!           #   so I give up on ucx and try verbs
+  #!           # ucx is probably best, see
+  #!           #   https://www.ks.uiuc.edu/Research/namd/wiki/index.cgi?NamdOnInfiniBand
+  #!           - charmpp +smp backend=verbs
+  #!           # - !spec {depends: *ucx-external}
   # intel python
   - - !compiled
       compiler: !cat [*intel, *arch]
