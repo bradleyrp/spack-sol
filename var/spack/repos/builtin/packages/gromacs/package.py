@@ -90,9 +90,26 @@ class Gromacs(CMakePackage, CudaPackage):
         default=False,
         description="Produces a double precision version of the executables",
     )
-    variant("cufftmp", default=False, when="+cuda+mpi", description="Enable Multi GPU FFT support")
+    variant(
+        "cufftmp",
+        default=False,
+        when="@2022: +cuda+mpi",
+        description="Enable multi-GPU FFT support with cuFFTMp",
+    )
+    variant(
+        "heffte",
+        default=False,
+        when="@2021: +sycl+mpi",
+        description="Enable multi-GPU FFT support with HeFFTe",
+    )
     variant("opencl", default=False, description="Enable OpenCL support")
-    variant("sycl", default=False, description="Enable SYCL support")
+    variant("sycl", default=False, when="@2021:", description="Enable SYCL support")
+    variant(
+        "intel-data-center-gpu-max",
+        default=False,
+        when="@2022: +sycl",
+        description="Enable support for Intel Data Center GPU Max",
+    )
     variant("nosuffix", default=False, description="Disable default suffixes")
     variant(
         "build_type",
@@ -107,6 +124,18 @@ class Gromacs(CMakePackage, CudaPackage):
             "RelWithAssert",
             "Profile",
         ),
+    )
+    variant(
+        "nblib",
+        default=True,
+        when="@2021:",
+        description="Build and install the NB-LIB C++ API for GROMACS",
+    )
+    variant(
+        "gmxapi",
+        default=True,
+        when="@2019:",
+        description="Build and install the gmxlib python API for GROMACS",
     )
     variant(
         "mdrun_only",
@@ -254,6 +283,7 @@ class Gromacs(CMakePackage, CudaPackage):
     depends_on("cp2k@8.1:", when="+cp2k")
 
     depends_on("nvhpc", when="+cufftmp")
+    depends_on("heffte", when="+heffte")
 
     requires(
         "%intel",
@@ -276,6 +306,8 @@ class Gromacs(CMakePackage, CudaPackage):
         sha256="2c30d00404b76421c13866cc42afa5e63276f7926c862838751b158df8727b1b",
         when="@2021.1:2021.2",
     )
+
+    patch("cufftmp-cmake-add-nvshmem.patch", when="+cufftmp")
 
     filter_compiler_wrappers(
         "*.cmake", relative_root=os.path.join("share", "cmake", "gromacs_mpi")
@@ -515,6 +547,35 @@ class CMakeBuilder(spack.build_systems.cmake.CMakeBuilder):
                 f'-DcuFFTMp_ROOT={self.spec["nvhpc"].prefix}/Linux_{self.spec.target.family}'
                 + f'/{self.spec["nvhpc"].version}/math_libs'
             )
+            # Add option to include cufft-mp's nvhshmem dependency.
+            # This currently requires the NVIDIA device drivers to be installed on the build
+            # machine to fulfill nvshmem_host's dependency on nvidia-ml.
+            options.append(
+                f'-DcuFFTMp_NVSHMEM_ROOT={self.spec["nvhpc"].prefix}/'
+                + f'Linux_{self.spec.target.family}/{self.spec["nvhpc"].version}'
+                + f'/comm_libs/{self.spec["cuda"].version.up_to(2)}/nvshmem_cufftmp_compat'
+            )
+            # The stub directories included in the Cuda Toolkit are
+            # internally versioned but not linked/name after their
+            # SONAME version. When compiling an executable the linker
+            # wants to load the versioned libraries and will fail for
+            # libnvidia.so.<VER> unless we relax this
+            # requirment. Unfortunately this relaxes this for all
+            # libraries.
+            options.append("-DGMX_EXE_LINKER_FLAGS=-Wl,--allow-shlib-undefined")
+
+        if "+heffte" in self.spec:
+            options.append("-DGMX_USE_HEFFTE=on")
+            options.append(f'-DHeffte_ROOT={self.spec["heffte"].prefix}')
+
+        if "+intel-data-center-gpu-max" in self.spec:
+            options.append("-DGMX_GPU_NB_CLUSTER_SIZE=8")
+            options.append("-DGMX_GPU_NB_NUM_CLUSTER_PER_CELL_X=1")
+
+        if "~nblib" in self.spec:
+            options.append("-DGMX_INSTALL_NBLIB_API=OFF")
+        if "~gmxapi" in self.spec:
+            options.append("-DGMXAPI=OFF")
 
         # Activate SIMD based on properties of the target
         target = self.spec.target
