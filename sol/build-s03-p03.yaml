@@ -91,9 +91,6 @@ spack:
     openmpi:
       buildable: false
       externals: 
-      # dev: received internal error even though I matched this spec to the openmpi spec at the root level below
-      #   error message: internal_error("node belongs to no unification set")
-      #   ...!!
       - spec: openmpi@4.1.6%gcc@12.3.0+atomics+cuda~cxx~cxx_exceptions~gpfs~internal-hwloc~internal-pmix~java+legacylaunchers~lustre~memchecker~openshmem~orterunprefix+pmi+romio+rsh~singularity+static+vt+wrapper-rpath build_system=autotools cuda_arch=89 fabrics=cma,hcoll,knem,ucx,xpmem schedulers=slurm arch=linux-centos8-icelake
         prefix: /share/Apps/ice24v1/linux-centos8-icelake/gcc-12.3.0/openmpi-4.1.6-as7ukvqajqdnklhutbmh46epxpdg7uel
     intel-oneapi-compilers:
@@ -106,13 +103,6 @@ spack:
       externals:
       - spec: intel-oneapi-mpi@2021.10.0%oneapi@2023.2.0+envmods~external-libfabric~generic-names~ilp64 build_system=generic arch=linux-centos8-icelake
         prefix: /share/Apps/ice24v1/linux-centos8-icelake/oneapi-2023.2.0/intel-oneapi-mpi-2021.10.0-umeoaxviwhl3naan6wtfayripnetzoei
-#    cuda:
-#      buildable: false
-#      externals:
-#      - spec: cuda@12.2.1%gcc@12.3.0~allow-unsupported-compilers~dev build_system=generic arch=linux-centos8-icelake
-#        prefix: /share/Apps/ice24v1/linux-centos8-icelake/gcc-12.3.0/cuda-12.2.1-dxwakxauuyioent6cxlfd6lqwmwiyjec
-#      - spec: cuda@12.2.1%oneapi@2023.2.0~allow-unsupported-compilers~dev build_system=generic arch=linux-centos8-icelake
-#        prefix: /share/Apps/ice24v1/linux-centos8-icelake/oneapi-2023.2.0/cuda-12.2.1-abvxym3jb7qg22hrhho5kzyzy325nylx
     ucx:
       buildable: false
       externals:
@@ -155,17 +145,6 @@ spack:
       specs:
       - &cuda cuda@12.2.1
       - &nvhpc nvhpc@23.9 +blas+lapack~mpi
-#      - &ucx !cat
-#        - ucx@1.16.0
-#        - ~assertions ~backtrace_detail build_system=autotools
-#          +cma +cuda +dc ~debug +dm +gdrcopy ~gtest +ib_hw_tm
-#          ~java +knem libs=shared,static
-#          ~logging +mlx5_dv +openmp opt=3 +optimizations
-#          ~parameter_checking +pic +rc +rdmacm ~rocm simd=auto
-#          +thread_multiple ~ucg +ud +verbs +xpmem
-#          cuda_arch=89
-#        - !spec {depends: *cuda}
-#        - !spec {depends: hwloc +cuda}
     # mpi: openmpi 4
     - - &ompi4 !cat
         - !cat
@@ -178,11 +157,6 @@ spack:
             schedulers=slurm
             cuda_arch=89
           - *arch
-        # spack does not consider external slurm spec, and pmix for slurm 21 must be 3,
-        #   see https://slurm.schedmd.com/mpi_guide.html#open_mpi
-#        - !spec {depends: pmix@3.2.3}
-#        # - !spec {depends: *ucx}
-#        - !spec {depends: *cuda}
     # gcc exclusives 
     - !compiled
       compiler: *gcc
@@ -242,10 +216,6 @@ spack:
         - &mkl-base intel-oneapi-mkl@2023.2.0
         - &mkl-variants +cluster +envmods ~ilp64 +shared threads=tbb mpi_family=openmpi
         - !spec {depends: *tbb}
-        #! - !spec 
-        #!   - depends: !cat
-        #!     - hwloc +cuda
-        #!     - !spec {depends: *cuda}
       - &netcdf-fortran !cat
         - netcdf-fortran@4.6.1 ~doc +pic +shared
         - !spec {depends: *netcdf-c}
@@ -406,80 +376,10 @@ spack:
         - !spec {depends: *netcdf-c}
         # note that vtk depends on netcdf-cxx@4 and we have netcdf-cxx4 instead
         - !spec {depends: *eigen}
-      # - !cat &kokkos
-      #   - kokkos@4.1.00
-      #     ~aggressive_vectorization ~compiler_warnings ~cuda ~debug 
-      #     ~debug_bounds_check ~debug_dualview_modify_check ~deprecated_code 
-      #     ~examples ~hpx ~hpx_async_dispatch +hwloc ~ipo ~memkind 
-      #     ~numactl +openmp +openmptarget ~pic ~rocm +serial +shared 
-      #     ~sycl ~tests ~threads ~tuning ~wrapper 
-      #   # the following requirements synchronize this kokkos with trilinos below
-      #   #   but we end up playing whack-a-mole. if we use this, we can expose this kokkos to
-      #   #   the module system and reuse it in support of trilinos. but then it tries to
-      #   #   recompile MKL. since we cannot have both, and kokkos is 7MB, we just drop this
-      #   #   requirement here. note that in the future we should probably recompile EVERYTHING
-      #   #   with: cmake ^curl +libidn2 and hwloc +netloc
-      #   #! - !spec {depends: *curl-libidn2}
-      #   #! - !spec {depends: hwloc +netloc}
       - !cat &trilinos
         - trilinos@14.4.0
           +zoltan +zoltan2
         - !spec {depends: *mkl}
-      #! dev: cannot compile this because it needs gmake@4.2.1
-      #! - !cat &trilinos-12
-      #!   - trilinos@12.18.1
-      #!     +zoltan +zoltan2
-      #!   - !spec {depends: *mkl}
-      #!   - !spec {depends: gmake@4.2.1}
-      #!   # dev: discarded explicit kokkos in modules: - !spec {depends: *kokkos}
-  #!     - !cat &boost
-  #!       - boost@1.83.0
-  #!         ~atomic ~chrono ~clanglibcpp ~container ~context ~contract ~coroutine ~date_time
-  #!         ~debug ~exception ~fiber ~filesystem ~graph ~graph_parallel ~icu ~iostreams 
-  #!         +json +locale ~log +math +mpi +multithreaded ~nowide +numpy ~pic
-  #!         ~program_options +python ~random +regex +serialization +shared ~signals 
-  #!         ~singlethreaded ~stacktrace ~system ~taggedlayout +test ~thread ~timer 
-  #!         ~type_erasure ~versionedlayout ~wave 
-  #!       - !spec {depends: *mkl}
-  #!       - !spec {depends: *py-numpy}
-  #!     - !cat &kokkos
-  #!       - kokkos@4.1.00
-  #!         ~aggressive_vectorization ~compiler_warnings ~cuda ~debug 
-  #!         ~debug_bounds_check ~debug_dualview_modify_check ~deprecated_code 
-  #!         ~examples ~hpx ~hpx_async_dispatch +hwloc ~ipo ~memkind 
-  #!         ~numactl +openmp +openmptarget ~pic ~rocm +serial +shared 
-  #!         ~sycl ~tests ~threads ~tuning ~wrapper 
-  #!     - &trilinos-base !cat
-  #!       - trilinos@14.4.0
-  #!       - ~adios2
-  #!     - !cat &adios
-  #!       - adios2@2.9.2
-  #!         ~aws +blosc2 +bzip2 ~cuda ~dataspaces +fortran +hdf5 ~ipo +kokkos 
-  #!         +libcatalyst +libpressio +mgard +mpi ~pic +png ~python ~rocm +sst +sz +zfp
-  #!       - !spec {depends: *kokkos}
-  #!       - !spec {depends: *trilinos-base}
-  #!     - !cat 
-  #!       - trilinos@14.4.0
-  #!         ~adelus +adios2 +amesos +amesos2 +anasazi +aztec ~basker +belos 
-  #!         ~boost ~chaco ~complex ~cuda ~cuda_rdc ~debug ~dtk +epetra 
-  #!         +epetraext ~epetraextbtf ~epetraextexperimental 
-  #!         ~epetraextgraphreorderings ~exodus +explicit_template_instantiation 
-  #!         ~float +fortran ~gtest +hdf5 +hypre +ifpack +ifpack2 ~intrepid 
-  #!         ~intrepid2 ~ipo ~isorropia +kokkos ~mesquite ~minitensor +ml 
-  #!         +mpi +muelu ~mumps ~nox ~openmp ~panzer ~phalanx ~piro 
-  #!         ~python ~rocm ~rocm_rdc ~rol ~rythmos +sacado ~scorec 
-  #!         ~shards +shared ~shylu ~stk ~stokhos ~stratimikos ~strumpack 
-  #!         ~suite-sparse ~superlu ~superlu-dist ~teko ~tempus ~test 
-  #!         ~thyra +tpetra ~trilinoscouplings ~wrapper ~x11 ~zoltan 
-  #!         ~zoltan2
-  #!       # avoiding adios because this also depends on trilinos
-  #!       - !spec {depends: *kokkos}
-  #!       - !spec {depends: *boost}
-  #!       - !spec {depends: !cat [*hdf5, /g7duo3s]}
-  #!       - !spec {depends: !cat [*hypre, /kvsk5hr]}
-  #!       - !spec {depends: *mkl}
-  #!       - !spec {depends: !cat [*metis, /2pvshtd]}
-  #!       - !spec {depends: *adios]}
   # namd on gcc
   #! - - !compiled
   #!     compiler: *gcc
@@ -548,7 +448,7 @@ spack:
   - - !loop_depends
       base: *intel-mpi
       specs: *mpi-general 
-  # depends on intel, intel-mpi, exclusives
+  # namd on gcc
   #! icx is not supported in this version. also I get errors with MPI and the docs indicate that
   #!   you need some kind of icc architecture for openmpi anyway
   #! - - !loop_depends
@@ -573,66 +473,10 @@ spack:
   #!       - namd@3.0b3 
   #!       - *namd-support
   #!       - *charmpp-dep
-  # REQUEST: sundials for ada823
-  # building components for petsc
-  #! - - !compiled
-  #!     compiler: *intel
-  #!     specs:
-  #!     - *openblas
-  #!     - &metis !cat
-  #!       - metis@5.1.0 
   # depends on intel, intel-mpi, exclusives
   - - !loop_depends
       base: *intel-mpi
       specs: 
-  #!     - *hdf5 
-  #!     - *parallel-netcdf
-  #!     - *netcdf-fortran
-  #!     - &parmetis !cat
-  #!       - parmetis@4.0.3
-  #!     - &superlu !cat
-  #!       - superlu@5.3.0
-  #!       - !spec {depends: *mkl}
-  #!     - !cat &petsc
-  #!       - petsc@3.20.1
-  #!       - ~X ~batch ~cgns ~complex ~cuda ~debug +double ~exodusii
-  #!         +fftw +fortran ~giflib +hdf5 ~hpddm ~hwloc +hypre +int64 ~jpeg
-  #!         ~knl ~kokkos ~libpng ~libyaml ~memkind +metis +mkl-pardiso ~mmg
-  #!         ~moab ~mpfr +mpi ~mumps ~openmp ~p4est ~parmmg ~ptscotch ~random123 ~rocm
-  #!         ~saws ~scalapack +shared ~strumpack ~suite-sparse +superlu-dist ~sycl
-  #!         ~tetgen ~trilinos ~valgrind 
-  #!         build_system=generic clanguage=C memalign=none 
-  #!       # - !spec {depends: *hdf5}
-  #!       - !spec {depends: *metis}
-  #!       - !spec {depends: *parmetis}
-  #!       - !spec {depends: *python-intel}
-  #!       - !spec {depends: *superlu}
       - &hypre-intel !cat
         - hypre@2.20.0 +openmp +int64
         - !spec {depends: *mkl}
-  #! giving up after major struggle
-  #! - - !compiled
-  #!     compiler: *intel
-  #!     specs:
-  #!     - !cat
-  #!       - sundials@2.7.0
-  #!       - +ARKODE +CVODE +CVODES +IDA +IDAS +KINSOL
-  #!         ~mpi +static +shared
-  #!         +fcmix
-  #!       #! - !spec {depends: *hypre}
-  #!       #! - !spec {depends: *petsc}
-  #! # depends on intel, intel-mpi, exclusives
-  #! - - !loop_depends
-  #!     base: *intel-mpi
-  #!     specs: 
-  #!     # dev: manually downloaded the source and updated Spack
-  #!     #   via vim $(spack location -p amber)/package.py
-  #!     - !cat
-  #!       - amber@22 +cuda cuda_arch=89 +mpi ~openmp +update
-  #!       # interestingly, you need to specify intel here or most of
-  #!       #   this tree supporting Amber is %gcc
-  #!       - !spec {compiler: *intel}
-  #!       - !spec {depends: *cuda}
-  #!       - !spec {depends: *hdf5}
-  #!       - !spec {depends: *netcdf-fortran}
-  #!       - !spec {depends: *parallel-netcdf}

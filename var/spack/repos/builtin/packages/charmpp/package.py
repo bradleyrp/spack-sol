@@ -423,3 +423,8 @@ class Charmpp(Package):
         self.spec.mpifc = self.prefix.bin.ampif90
         self.spec.mpif77 = self.prefix.bin.ampif77
         self.spec.charmarch = self.charmarch + "-smp" if self.spec.satisfies("+smp") else ""
+
+    def setup_build_environment(self, env):
+        # rpb222 edits to point to cuda
+        if "+cuda" in self.spec:
+            env.set("CUDATOOLKIT_HOME", self.spec["cuda"].prefix)
