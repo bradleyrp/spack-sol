@@ -130,9 +130,8 @@ spack:
   # depends on gcc 
   - &gcc-all
     - !compiled
-      compiler: !cat
-      - &gcc gcc@12.3.0 
-      - &arch arch=linux-centos8-icelake
+      compiler: &gcc gcc@12.3.0 
+      arch: &arch arch=linux-centos8-icelake
       specs: !flatten
       - &compiled-specs
         - &perl perl@5.38.0 +cpanm+open+shared+threads build_system=generic
@@ -140,7 +139,7 @@ spack:
           - cmake@3.27.7 
           # marking the default so that this cmake propagates to e.g. tbb, mkl
           #   and compiles a single default tbb, mkl also usable with R
-          - !spec {depends: curl +libidn2}
+          - !spec {depends: &curl-libidn2 curl +libidn2}
           - !spec {depends: *perl}
         - zlib@1.3 +optimize+pic+shared build_system=makefile
         - bzip2@1.0.8 ~debug~pic+shared build_system=generic
@@ -151,7 +150,8 @@ spack:
           - !spec {depends: *cmake}
     # gcc CUDA and ucx for openmpi
     - !compiled
-      compiler: !cat [*gcc, *arch]
+      compiler: *gcc
+      arch: *arch
       specs:
       - &cuda cuda@12.2.1
       - &nvhpc nvhpc@23.9 +blas+lapack~mpi
@@ -185,12 +185,26 @@ spack:
 #        - !spec {depends: *cuda}
     # gcc exclusives 
     - !compiled
-      compiler: !cat [*gcc, *arch]
+      compiler: *gcc
+      arch: *arch
       specs:
       - !cat &openblas
         - openblas@0.3.24 
         - ~bignuma ~consistent_fpcsr +fortran ~ilp64 +locking +pic +shared
       - anaconda3@2023.09-0 
+      - &eigen eigen
+      - pugixml
+      - !cat &metis 
+        - !cat
+          - metis@5.1.0
+          # defensively adding the compiler and arch otherwise it applies to the curl
+          #   dependency only
+          # dev: we need to place the compiler earlier in the list or it applies downstream
+          #   see the abandoned spec_reformed function which sought to address this until
+          #   we cleaned up the tree
+          - *arch
+        - ~gdb ~int64 ~ipo ~real64 +shared
+        - !spec {depends: *curl-libidn2}
   # INTEL + MPI
   # note that I installed the compilers at one version and oneapi is detected at another
   - - - !cat
@@ -207,7 +221,8 @@ spack:
           - *arch
     # Intel CUDA 
     - !compiled
-      compiler: !cat [*intel, *arch]
+      compiler: *intel
+      arch: *arch
       specs:
       - &cuda cuda@12.2.1
   # depends on gcc, openmpi
@@ -221,7 +236,7 @@ spack:
         - netcdf-c@4.9.2
         - !spec {depends: *hdf5}
       - !cat
-        - netcdf-cxx4@4.3.1
+        - &netcdf-cxx netcdf-cxx4@4.3.1
         - !spec {depends: *netcdf-c}
       - &mkl !cat 
         - &mkl-base intel-oneapi-mkl@2023.2.0
@@ -237,7 +252,8 @@ spack:
       - &parallel-netcdf parallel-netcdf@1.12.3 ~burstbuffer +cxx +fortran +pic +shared
   # gcc python
   - - !compiled
-      compiler: !cat [*gcc, *arch]
+      compiler: *gcc
+      arch: *arch
       specs:
       - !cat &python
         - python@3.11.6
@@ -245,7 +261,11 @@ spack:
           +optimizations +pic +pyexpat +pythoncmd +readline +shared
           +sqlite3 +ssl +uuid +zlib
   - - !loop_depends
-      base: *python
+      base: !cat
+      - *python
+      - !spec 
+        compiler: *gcc
+        arch: *arch
       # note that the wheel, pip, setuptools, supporting cython are ad hoc here,
       #   but for intel below we make them more explicit
       specs: &python-support
@@ -267,7 +287,8 @@ spack:
         - !spec {depends: *py-numpy}
   # gcc R
   - - !compiled
-      compiler: !cat [*gcc, *arch]
+      compiler: *gcc
+      arch: *arch
       specs:
       - !cat &r
         - r@4.3.0
@@ -287,9 +308,12 @@ spack:
         - py-mpi4py@3.1.4
         - !spec {depends: *py-cython-29}
         - !spec {depends: *python}
-  # depends on intel
+      - !cat &parmetis 
+        - parmetis@4.0.3
+        - !spec {depends: *metis}
   - - !compiled
       compiler: *intel
+      arch: *arch
       specs: *compiled-specs 
   # depends on gcc, openmpi, mkl, cuda
   - - !builder
@@ -349,7 +373,113 @@ spack:
         #   - !spec {depends: kokkos +wrapper +cuda cuda_arch=89}
         - !spec {depends: *cuda}
         - !spec {depends: *openblas}
-      - hypre@2.20.0 +openmp
+      # building generic cast of characters
+      - &hypre hypre@2.20.0 +openmp
+      - !cat &superlu-dist
+        - superlu-dist@8.1.2
+        - !spec {depends: *metis}
+        - !spec {depends: *parmetis}
+      - !cat &petsc 
+        - petsc@3.20.1
+        - !spec {depends: *hdf5}
+        - !spec {depends: *hypre}
+        - !spec {depends: *metis}
+        - !spec {depends: *parmetis}
+        - !spec {depends: *superlu-dist}
+        - !spec {depends: *python}
+      - !cat &boost
+        - boost@1.83.0
+          ~atomic ~chrono ~clanglibcpp ~container ~context ~contract ~coroutine ~date_time
+          ~debug ~exception ~fiber ~filesystem ~graph ~graph_parallel ~icu ~iostreams 
+          +json +locale ~log +math +mpi +multithreaded ~nowide +numpy ~pic
+          ~program_options +python ~random +regex +serialization +shared ~signals 
+          ~singlethreaded ~stacktrace ~system ~taggedlayout +test ~thread ~timer 
+          ~type_erasure ~versionedlayout ~wave 
+        - !spec {depends: *py-numpy}
+  # requirements for aLENS for div206
+  - - !loop_depends
+      base: *ompi4
+      specs: 
+      # dev: aLENS specifically requests trilinos@12.18 but I get errors
+      - !cat
+        - vtk@9.2.6 
+        - !spec {depends: *netcdf-c}
+        # note that vtk depends on netcdf-cxx@4 and we have netcdf-cxx4 instead
+        - !spec {depends: *eigen}
+      # - !cat &kokkos
+      #   - kokkos@4.1.00
+      #     ~aggressive_vectorization ~compiler_warnings ~cuda ~debug 
+      #     ~debug_bounds_check ~debug_dualview_modify_check ~deprecated_code 
+      #     ~examples ~hpx ~hpx_async_dispatch +hwloc ~ipo ~memkind 
+      #     ~numactl +openmp +openmptarget ~pic ~rocm +serial +shared 
+      #     ~sycl ~tests ~threads ~tuning ~wrapper 
+      #   # the following requirements synchronize this kokkos with trilinos below
+      #   #   but we end up playing whack-a-mole. if we use this, we can expose this kokkos to
+      #   #   the module system and reuse it in support of trilinos. but then it tries to
+      #   #   recompile MKL. since we cannot have both, and kokkos is 7MB, we just drop this
+      #   #   requirement here. note that in the future we should probably recompile EVERYTHING
+      #   #   with: cmake ^curl +libidn2 and hwloc +netloc
+      #   #! - !spec {depends: *curl-libidn2}
+      #   #! - !spec {depends: hwloc +netloc}
+      - !cat &trilinos
+        - trilinos@14.4.0
+          +zoltan +zoltan2
+        - !spec {depends: *mkl}
+      #! dev: cannot compile this because it needs gmake@4.2.1
+      #! - !cat &trilinos-12
+      #!   - trilinos@12.18.1
+      #!     +zoltan +zoltan2
+      #!   - !spec {depends: *mkl}
+      #!   - !spec {depends: gmake@4.2.1}
+      #!   # dev: discarded explicit kokkos in modules: - !spec {depends: *kokkos}
+  #!     - !cat &boost
+  #!       - boost@1.83.0
+  #!         ~atomic ~chrono ~clanglibcpp ~container ~context ~contract ~coroutine ~date_time
+  #!         ~debug ~exception ~fiber ~filesystem ~graph ~graph_parallel ~icu ~iostreams 
+  #!         +json +locale ~log +math +mpi +multithreaded ~nowide +numpy ~pic
+  #!         ~program_options +python ~random +regex +serialization +shared ~signals 
+  #!         ~singlethreaded ~stacktrace ~system ~taggedlayout +test ~thread ~timer 
+  #!         ~type_erasure ~versionedlayout ~wave 
+  #!       - !spec {depends: *mkl}
+  #!       - !spec {depends: *py-numpy}
+  #!     - !cat &kokkos
+  #!       - kokkos@4.1.00
+  #!         ~aggressive_vectorization ~compiler_warnings ~cuda ~debug 
+  #!         ~debug_bounds_check ~debug_dualview_modify_check ~deprecated_code 
+  #!         ~examples ~hpx ~hpx_async_dispatch +hwloc ~ipo ~memkind 
+  #!         ~numactl +openmp +openmptarget ~pic ~rocm +serial +shared 
+  #!         ~sycl ~tests ~threads ~tuning ~wrapper 
+  #!     - &trilinos-base !cat
+  #!       - trilinos@14.4.0
+  #!       - ~adios2
+  #!     - !cat &adios
+  #!       - adios2@2.9.2
+  #!         ~aws +blosc2 +bzip2 ~cuda ~dataspaces +fortran +hdf5 ~ipo +kokkos 
+  #!         +libcatalyst +libpressio +mgard +mpi ~pic +png ~python ~rocm +sst +sz +zfp
+  #!       - !spec {depends: *kokkos}
+  #!       - !spec {depends: *trilinos-base}
+  #!     - !cat 
+  #!       - trilinos@14.4.0
+  #!         ~adelus +adios2 +amesos +amesos2 +anasazi +aztec ~basker +belos 
+  #!         ~boost ~chaco ~complex ~cuda ~cuda_rdc ~debug ~dtk +epetra 
+  #!         +epetraext ~epetraextbtf ~epetraextexperimental 
+  #!         ~epetraextgraphreorderings ~exodus +explicit_template_instantiation 
+  #!         ~float +fortran ~gtest +hdf5 +hypre +ifpack +ifpack2 ~intrepid 
+  #!         ~intrepid2 ~ipo ~isorropia +kokkos ~mesquite ~minitensor +ml 
+  #!         +mpi +muelu ~mumps ~nox ~openmp ~panzer ~phalanx ~piro 
+  #!         ~python ~rocm ~rocm_rdc ~rol ~rythmos +sacado ~scorec 
+  #!         ~shards +shared ~shylu ~stk ~stokhos ~stratimikos ~strumpack 
+  #!         ~suite-sparse ~superlu ~superlu-dist ~teko ~tempus ~test 
+  #!         ~thyra +tpetra ~trilinoscouplings ~wrapper ~x11 ~zoltan 
+  #!         ~zoltan2
+  #!       # avoiding adios because this also depends on trilinos
+  #!       - !spec {depends: *kokkos}
+  #!       - !spec {depends: *boost}
+  #!       - !spec {depends: !cat [*hdf5, /g7duo3s]}
+  #!       - !spec {depends: !cat [*hypre, /kvsk5hr]}
+  #!       - !spec {depends: *mkl}
+  #!       - !spec {depends: !cat [*metis, /2pvshtd]}
+  #!       - !spec {depends: *adios]}
   # namd on gcc
   #! - - !compiled
   #!     compiler: *gcc
@@ -377,7 +507,8 @@ spack:
   #!           # - !spec {depends: *ucx-external}
   # intel python
   - - !compiled
-      compiler: !cat [*intel, *arch]
+      compiler: *intel
+      arch: *arch
       specs:
       # due to a compiler bug in oneapi explained in the Python Spack package,
       #   we have to hang out in 2019
@@ -385,7 +516,9 @@ spack:
   - - !loop_depends
       base: !cat
       - *python-intel
-      - !spec {compiler: *intel}
+      - !spec 
+        compiler: *intel
+        arch: *arch
       specs: &python-support-intel
       # suport for py-cython and hence py-numpy and scipy below is standardized
       #   around a single py-pip, py-wheel, and py-setuptools at maximum version
@@ -400,7 +533,8 @@ spack:
         - !spec {depends: *py-pip-intel}
         - !spec {depends: *python-intel}
   - - !compiled
-      compiler: !cat [*intel, *arch]
+      compiler: *intel
+      arch: *arch
       specs:
       - !cat &py-numpy-intel
         - py-numpy@1.24.4
@@ -473,7 +607,7 @@ spack:
   #!       - !spec {depends: *parmetis}
   #!       - !spec {depends: *python-intel}
   #!       - !spec {depends: *superlu}
-      - &hypre !cat
+      - &hypre-intel !cat
         - hypre@2.20.0 +openmp +int64
         - !spec {depends: *mkl}
   #! giving up after major struggle
