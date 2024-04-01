@@ -17,14 +17,19 @@ class Namd(MakefilePackage, CudaPackage):
     high-performance simulation of large biomolecular systems."""
 
     homepage = "https://www.ks.uiuc.edu/Research/namd/"
-    url = "file://{0}/NAMD_2.12_Source.tar.gz".format(os.getcwd())
+    # rpb222 override the file path
+    # url = "file://{0}/NAMD_2.12_Source.tar.gz".format(os.getcwd())
+    source_dn = '/share/Apps/build/inhpc/manual/source/namd'
+    url = "file://{0}/NAMD_2.12_Source.tar".format(source_dn)
     git = "https://charm.cs.illinois.edu/gerrit/namd.git"
     manual_download = True
 
     maintainers("jcphill")
 
     version("master", branch="master")
-    version("3.0b3", sha256="20c32b6161f9c376536e3cb97c3bfe5367e1baaaace3c716ff79831fc2eb8199")
+    # rpb222 edits
+    #   version("3.0b3", sha256="20c32b6161f9c376536e3cb97c3bfe5367e1baaaace3c716ff79831fc2eb8199")
+    version("3.0b3", sha256="4f25432beb9e4a260ca3404faeebb2abb8207b5ea2e0f2f7080c9a7a98b71352")
     version("2.15a2", sha256="8748cbaa93fc480f92fc263d9323e55bce6623fc693dbfd4a40f59b92669713e")
     version("2.15a1", branch="master", tag="release-2-15-alpha-1")
     # Same as above, but lets you use a local file instead of git
@@ -33,7 +38,9 @@ class Namd(MakefilePackage, CudaPackage):
     )
     version(
         "2.14",
-        sha256="34044d85d9b4ae61650ccdba5cda4794088c3a9075932392dd0752ef8c049235",
+        # rpb222 edits
+        #   sha256="34044d85d9b4ae61650ccdba5cda4794088c3a9075932392dd0752ef8c049235",
+        sha256="dffcc5a1eb064b9f7942f56d5e6881da1c685e38c299dd3e9c6261064d837f47",
         preferred=True,
     )
     version("2.13", md5="9e3323ed856e36e34d5c17a7b0341e38")
