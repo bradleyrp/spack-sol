@@ -24,6 +24,11 @@ class Arrow(CMakePackage, CudaPackage):
     version("12.0.1", sha256="f01b76a42ceb30409e7b1953ef64379297dd0c08502547cae6aaafd2c4a4d92e")
     version("12.0.0", sha256="f25901c486e1e79cde8b78b3e7b1d889919f942549996003a7341a8ee86addaa")
     version("11.0.0", sha256="4a8c0c3d5b39ca81f4a636a41863f1cf5e0ed199f994bf5ead0854ca037eb741")
+
+    # rpb222 adds latest
+    version("15.0.2", sha256="4735b349845bff1fe95ed11abbfed204eb092cabc37523aa13a80cb830fe5b5e")
+    version("15.0.1", sha256="a8b154a2870aa998019baeb22a6514477918a5831d4760a85b516cb4c9a3402a")
+
     version("10.0.1", sha256="28c3e0402bc1c3c1e047b6e26cedb8d1d89b2b9497d576af24b0b700eef11701")
     version("9.0.0", sha256="bb187b4b0af8dcc027fffed3700a7b891c9f76c9b63ad8925b4afb8257a2bb1b")
     version("8.0.0", sha256="19ece12de48e51ce4287d2dee00dc358fbc5ff02f41629d16076f77b8579e272")
@@ -103,6 +108,7 @@ class Arrow(CMakePackage, CudaPackage):
     variant("tensorflow", default=False, description="Build Arrow with TensorFlow support enabled")
     variant("zlib", default=False, description="Build support for zlib (gzip) compression")
     variant("zstd", default=False, description="Build support for ZSTD compression")
+    variant("csv", default=False, description="Build support for CSV")
 
     root_cmakelists_dir = "cpp"
 
@@ -156,6 +162,7 @@ class Arrow(CMakePackage, CudaPackage):
         args.append(self.define_from_variant("ARROW_WITH_SNAPPY", "snappy"))
         args.append(self.define_from_variant("ARROW_WITH_ZLIB", "zlib"))
         args.append(self.define_from_variant("ARROW_WITH_ZSTD", "zstd"))
+        args.append(self.define_from_variant("ARROW_CSV", "csv"))
 
         if not self.spec.dependencies("re2"):
             args.append(self.define("ARROW_WITH_RE2", False))
