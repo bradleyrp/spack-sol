@@ -34,29 +34,45 @@ spack:
         # exclude cmake above and include this one because we design it to be reused with
         #   intel-oneapi-mkl that supports R to reduce redundancy
         - cmake ^curl +libidn2
-        exclude_implicits: true
         # whenever a modulefile refers to a custom projection
+        #   note that we use Core specs to stage the modules before modulefix functions
         core_specs:
         - build_system=python_pip ^python
+        - ^r
+        # it is critical that we avoid excluding implicits or for example py-matplotlib will
+        #   not include the PYTHONPATH for a run dependency, py-pillow in the modulefile. for
+        #   some reason this was not an issue with R and its dependent packages. note also that
+        #   it is extremely tricky to test this. you need a completely new session or else a success
+        #   will keep your PYTHONPATH correct between tests! make sure to test in a completely
+        #   fresh session. lastly, we had to trim the modulerc files a bit to account for our
+        #   module shuffling, or else we got errors when it tried to hide a python with a hash on it
+        #   see sol_custom.custom.fix_python_modulerc
+        exclude_implicits: false
+        # this is critical to ensuring that PYTHONPATH for packages such as py-matplotlib
+        #   includes all of the correct modules. this might be a change in spack v0.21 that did
+        #   not make its way into the docs, see https://github.com/spack/spack/issues/42535
+        hide_implicits: true
+        hash_length: 0
         projections:
           gromacs +cufftmp: gromacs/{version}-cufftmp
           build_system=python_pip ^python ^mpi: &py-mpi-pro 'py-{^python.version}-{compiler.name}-{compiler.version}-{^mpi.name}-{^mpi.version}/{name}/{version}'
           build_system=python_pip ^python: &py-pro 'py-{^python.version}-{compiler.name}-{compiler.version}/{name}/{version}' 
-          ^r: 'r-{^r.version}/{name}/{version}'
+          ^r ^mpi: 'r-{^r.version}-{compiler.name}-{compiler.version}-{^mpi.name}-{^mpi.version}/{name}/{version}'
+          ^r: 'r-{^r.version}-{compiler.name}-{compiler.version}/{name}/{version}'
           namd +cuda: 'namd-gpu/{version}'
           all: '{name}/{version}'
-        hash_length: 0
-        # other module extensions in spack/etc/templates/lmod.lua
-        #   for example the defintions of LOCAL_SCRATCH and CEPHFS_SCRATCH
-        all:
-          environment:
-            set:
-              'LURC_{name}_DIR': '{prefix}'
         # gromacs +cufftmp throws "WARN: NCCL library not found" unless we link
         nvhpc:
           environment:
             prepend_path:
               LD_LIBRARY_PATH: '{prefix}/Linux_{target.family}/{version}/comm_libs/nccl/lib'
+        # other module extensions are in spack/etc/templates/lmod.lua
+        #   for example the defintions of LOCAL_SCRATCH and CEPHFS_SCRATCH
+        all:
+          autoload: all
+          environment:
+            set:
+              'LURC_{name}_DIR': '{prefix}'
       # recover the LD_LIBRARY_PATH behavior
       #   this was prompted by sundials
       prefix_inspections:
@@ -138,6 +154,7 @@ spack:
           - intel-tbb@2021.9.0
           - ~ipo +shared +tm
           - !spec {depends: *cmake}
+        - &git git@2.42.0
     # gcc CUDA and ucx for openmpi
     - !compiled
       compiler: *gcc
@@ -242,6 +259,8 @@ spack:
       - py-setuptools@68.0.0
       - py-wheel@0.41.2
       - py-pip@23.1.2
+      - py-packaging@23.1
+      - &py-scm py-setuptools-scm@7.1.0
       - &py-cython py-cython@3.0.4
       - &py-cython-29 py-cython@0.29.36
   - - !loop_depends
@@ -255,6 +274,19 @@ spack:
       - !cat &py-scipy
         - py-scipy@1.11.3
         - !spec {depends: *py-numpy}
+  - - !loop_depends
+      base: !cat
+      - *python
+      - !spec 
+        compiler: *gcc
+        arch: *arch
+      specs:
+      - !cat 
+        - py-matplotlib
+        - !spec {depends: *py-numpy}
+        - !spec {depends: *ompi4}
+        - !spec {depends: *git}
+        - !spec {depends: *py-scm}
   # gcc R
   - - !compiled
       compiler: *gcc
@@ -270,6 +302,60 @@ spack:
         # something triggers a change to mkl
         - !spec {depends: *mkl}
         - !spec {depends: *tbb}
+    - !loop_depends
+      base: *r
+      specs:
+      - r-dplyr@1.1.2
+      - r-ggplot2@3.4.2
+      - r-bit@4.0.5
+      - r-bit64@4.0.5
+      - r-withr@2.5.0
+      - r-assertthat@0.2.1 
+      - r-magrittr@2.0.3
+      - r-glue@1.6.2
+      - r-rlang@1.1.0
+      - r-r6@2.5.1
+      - r-tidyselect@1.2.0
+      - r-rcpp@1.0.10
+      - r-cli@3.6.1
+      - r-lifecycle@1.0.3
+      - r-vctrs@0.6.2
+      - r-purrr@1.0.1
+      - r-fs@1.6.2
+      - r-lobstr@1.1.2
+      - r-cpp11@0.4.3
+    # bioconductor
+    - !loop_depends
+      base: *r
+      specs:
+      # core items
+      - r-biocmanager
+      - r-biocinstaller
+      # requested
+      - r-biostrings
+      - r-genomicranges
+      # dependents
+      # dev: note that we can hide implicits so these might not strictly be necessary
+      - r-biostrings
+      - r-biocgenerics
+      - r-genomeinfodb
+      - r-genomeinfodbdata
+      - r-rcurl
+      - r-bitops
+      - r-iranges
+      - r-s4vectors
+      - r-xvector
+      - r-zlibbioc
+      - r-genomicranges
+      - r-biocgenerics
+      - r-genomeinfodb
+      - r-genomeinfodbdata
+      - r-rcurl
+      - r-bitops
+      - r-iranges
+      - r-s4vectors
+      - r-xvector
+      - r-zlibbioc
   # depends on gcc, openmpi, gcc-exclusive
   - - !loop_depends
       base: *ompi4
@@ -281,10 +367,6 @@ spack:
       - !cat &parmetis 
         - parmetis@4.0.3
         - !spec {depends: *metis}
-  - - !compiled
-      compiler: *intel
-      arch: *arch
-      specs: *compiled-specs 
   # depends on gcc, openmpi, mkl, cuda
   - - !builder
       # note thinking about changing target to one with AVX2_256 because GROMACS
@@ -359,12 +441,23 @@ spack:
         - !spec {depends: *python}
       - !cat &boost
         - boost@1.83.0
-          ~atomic ~chrono ~clanglibcpp ~container ~context ~contract ~coroutine ~date_time
-          ~debug ~exception ~fiber ~filesystem ~graph ~graph_parallel ~icu ~iostreams 
-          +json +locale ~log +math +mpi +multithreaded ~nowide +numpy ~pic
-          ~program_options +python ~random +regex +serialization +shared ~signals 
-          ~singlethreaded ~stacktrace ~system ~taggedlayout +test ~thread ~timer 
-          ~type_erasure ~versionedlayout ~wave 
+          +atomic +chrono ~clanglibcpp ~container ~context ~contract ~coroutine +date_time
+          ~debug +exception ~fiber +filesystem +graph ~graph_parallel ~icu +iostreams 
+          +json +locale +log +math +mpi +multithreaded ~nowide +numpy +pic
+          +program_options +python +random +regex +serialization +shared +signals 
+          ~singlethreaded ~stacktrace +system ~taggedlayout +test +thread +timer 
+          ~type_erasure ~versionedlayout +wave 
+        - !spec {depends: *py-numpy}
+      - !cat
+        - arrow@15.0.1
+          ~brotli ~compute ~cuda ~gandiva ~glog ~hdfs +ipc ~ipo ~jemalloc +lz4 ~orc +parquet
+          +python +shared ~snappy ~tensorflow +zlib +zstd
+          +csv
+        - !spec {depends: *boost}
+        - !spec {depends: *py-numpy}
+      - !cat
+        - arrow@10.0.1
+        - !spec {depends: *boost}
         - !spec {depends: *py-numpy}
   # requirements for aLENS for div206
   - - !loop_depends
@@ -405,6 +498,17 @@ spack:
   #!           #   https://www.ks.uiuc.edu/Research/namd/wiki/index.cgi?NamdOnInfiniBand
   #!           - charmpp +smp backend=verbs
   #!           # - !spec {depends: *ucx-external}
+  # duplicate standard programs on intel
+  - - !compiled
+      compiler: *intel
+      arch: *arch
+      specs: *compiled-specs 
+  # intel compiled exclusives
+  - - !compiled
+      compiler: *intel
+      arch: *arch
+      specs:
+      - *openblas
   # intel python
   - - !compiled
       compiler: *intel
@@ -426,6 +530,9 @@ spack:
       - &py-setuptools-intel py-setuptools@63.4.3
       - &py-wheel-intel py-wheel@0.37.1
       - &py-pip-intel py-pip@23.1.2
+      - !cat 
+        - py-packaging@23.1
+        - !spec {depends: *py-wheel-intel}
       - !cat &py-cython-29-intel
         - py-cython@0.29.36
         - !spec {depends: *py-setuptools-intel}
@@ -444,6 +551,19 @@ spack:
       - !cat &py-scipy-intel
         - py-scipy@1.10.1
         - !spec {depends: *py-cython-29-intel}
+  - - !loop_depends
+      base: !cat
+      - *python-intel
+      - !spec 
+        compiler: *intel
+        arch: *arch
+      specs:
+      - !cat 
+        - py-matplotlib
+        - !spec {depends: *py-numpy-intel}
+        - !spec {depends: *intel-mpi-base}
+        - !spec {depends: *git}
+        - !spec {depends: *py-scm}
   # depends on intel, intel-mpi
   - - !loop_depends
       base: *intel-mpi
