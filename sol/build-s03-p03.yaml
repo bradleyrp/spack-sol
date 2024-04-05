@@ -516,7 +516,13 @@ spack:
       specs:
       # due to a compiler bug in oneapi explained in the Python Spack package,
       #   we have to hang out in 2019
-      - &python-intel python@3.8.18
+      - !cat
+       - &python-intel python@3.8.18 
+       # failing to add tkinter here for Amber 2023 and AmberTools
+       #   see https://github.com/spack/spack/issues/40553
+       - +tkinter
+       - ^libxcb +use_spack_interpreter
+       - ^xcb-proto +use_spack_interpreter
   - - !loop_depends
       base: !cat
       - *python-intel
