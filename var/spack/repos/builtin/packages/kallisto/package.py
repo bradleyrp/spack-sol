@@ -15,6 +15,8 @@ class Kallisto(CMakePackage):
 
     license("BSD-2-Clause")
 
+    # rpb222 adds a new version otherwise 
+    version("0.50.1", sha256="030752bab3b0e33cd3f23f6d8feddd74194e5513532ffbf23519e84db2a86d34")
     version("0.48.0", sha256="1797ac4d1f0771e3f1f25dd7972bded735fcb43f853cf52184d3d9353a6269b0")
     version("0.46.2", sha256="c447ca8ddc40fcbd7d877d7c868bc8b72807aa8823a8a8d659e19bdd515baaf2")
     version("0.43.1", sha256="7baef1b3b67bcf81dc7c604db2ef30f5520b48d532bf28ec26331cb60ce69400")
@@ -66,5 +68,4 @@ class Kallisto(CMakePackage):
                 args.append(self.define_from_variant("USE_HDF5", "hdf5"))
         else:
             args = a
-
         return args

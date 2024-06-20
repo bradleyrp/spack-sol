@@ -50,6 +50,10 @@ spack:
       - &arch arch=linux-centos8-icelake
       - !spec {compiler: *gcc_back}
   - - !cat
+      - &gcc gcc@12.1.0
+      - &arch arch=linux-centos8-icelake
+      - !spec {compiler: *gcc_back}
+  - - !cat
       - &intel intel-oneapi-compilers@2023
       - *arch 
       - !spec {compiler: *gcc_back}
