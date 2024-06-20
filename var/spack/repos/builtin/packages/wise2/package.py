@@ -19,6 +19,9 @@ class Wise2(MakefilePackage):
     maintainers("snehring")
 
     version("2.4.1", sha256="240e2b12d6cd899040e2efbcb85b0d3c10245c255f3d07c1db45d0af5a4d5fa1")
+    # rpb222 notes that the website above is misconfigured and the tarball goes to html with no link
+    url = "http://ftp-stud.hs-esslingen.de/ubuntu/pool/universe/w/wise/wise_2.4.1.orig.tar.gz"
+    version("2.4.1", sha256="0aec5e30739110783517a429606249fc6c5fd0d65171c1a6d79ecc5ff81d2935")
 
     depends_on("gettext")
     depends_on("glib")
