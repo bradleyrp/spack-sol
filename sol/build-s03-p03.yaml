@@ -345,6 +345,7 @@ spack:
       specs:
       # NOTE: are you using py-numpy in a non-python package? then say so over in
       #   sol-custom/sol_custom/custom.py
+      # NOTE: below we pin against py-numpy /ijpdkyb
       - !cat &py-numpy
         - &py-numpy-ver py-numpy@1.26.1
         - !spec {depends: *mkl}
@@ -360,7 +361,8 @@ spack:
         compiler: *gcc
         arch: *arch
       specs:
-      - !cat 
+      # pinning against this hash later via py-matplotlib /tbuqzgi
+      - !cat &py-matplotlib 
         - py-matplotlib
         - !spec {depends: *py-numpy}
         - !spec {depends: *ompi4}
@@ -613,6 +615,7 @@ spack:
         - openfoam@2306
         - !spec {depends: boost /oyfbja6}
   # wym219 requests
+  # gave up on trinity, and trinotate which requires it
   - - !compiled
       compiler: *gcc
       arch: *arch
@@ -629,6 +632,7 @@ spack:
       - transdecoder@5.7.1
       - vcftools@0.1.16
       - wise2@2.4.1
+      - fasttree@2.1.11
   - - - &salmon !cat
         - salmon@1.10.2
         - !spec {compiler: *gcc, arch: *arch}
@@ -644,6 +648,17 @@ spack:
         - hyphy@2.5.51hf
         - !spec {arch: *arch}
         - !spec {depends: cmake ^curl+libidn2}
+  - - - !cat
+        - orthofinder@2.5.5
+        - !spec {compiler: *gcc, arch: *arch}
+        - !spec {depends: py-numpy /ijpdkyb}
+        - !spec {depends: *mafft}
+        - !spec {depends: *mcl}
+  - - - !cat &iq-tree
+        - iq-tree@2.2.2.7
+        - !spec {compiler: *gcc, arch: *arch}
+        - !spec {depends: *boost-plus}
+        - !spec {depends: *ompi4}
   - - !loop_depends
       base: !cat
       - *python
@@ -651,37 +666,59 @@ spack:
         compiler: *gcc
         arch: *arch
       specs:
-      - py-cutadapt@4.4
-  - - - !cat
-        - orthofinder@2.5.5
-        - !spec {compiler: *gcc, arch: *arch}
-        - !spec {depends: py-numpy /ijpdkyb}
-        - !spec {depends: *mafft}
-        - !spec {depends: *mcl}
-  # trinity requires r +X
-  #! - - !compiled
-  #!     compiler: *gcc
-  #!     arch: *arch
-  #!     specs:
-  #!     - !cat &r-x
-  #!       - &r-ver r@4.3.0
-  #!       # added this line afterwards for clarity
-  #!       - +X ~memory_profiling ~rmath
-  #!       - build_system=autotools +external-lapack
-  #!       # constrain cmake to reuse tbb and mkl below
-  #!       - !spec {depends: cmake ^curl+libidn2}
-  #!       - !spec {depends: *ompi4}
-  #!       - !spec {depends: *openjdk}
-  #!       # something triggers a change to mkl
-  #!       - !spec {depends: *mkl}
-  #!       - !spec {depends: *tbb}
-  - - - !cat
-        - trinity@2.15.1.FULL
-        - !spec {compiler: *gcc, arch: *arch}
-        - !spec {depends: *salmon}
-        - !spec {depends: *bowtie2}
-        - !spec {depends: *bowtie}
-        - !spec {depends: *py-numpy}
+        # icedtea and gtkplus are nested enormous nextflow dependencies so we expose them
+        - &gtkplus gtkplus@3.24.29 ~cups ~strip build_system=meson
+        - !cat &icedtea 
+          - icedtea@3.9.0 ~X ~shenandoah
+          - !spec {depends: *gtkplus}
+        - !cat
+          - nextflow@23.10.0
+          - !spec {depends: *icedtea}
+  #! retired the below and trying again with some of them
+  #!! - - !loop_depends
+  #!!     base: !cat
+  #!!     - *python
+  #!!     - !spec 
+  #!!       compiler: *gcc
+  #!!       arch: *arch
+  #!!     specs:
+  #!!     # wym219 requests
+  #!!     - !cat &py-pandas 
+  #!!       - py-pandas
+  #!!       - !spec {depends: py-numpy /ijpdkyb}
+  #!!     - !cat
+  #!!       - &py-biopython py-biopython
+  #!!       - !spec {depends: py-numpy /ijpdkyb}
+  #!!     - !cat 
+  #!!       - py-checkm-genome
+  #!!       # note that we have an error when we pin explicitly to py-matplotlib /tbuqzgi
+  #!!       - !spec {depends: *py-matplotlib}
+  #!!       - !spec {depends: py-numpy /ijpdkyb}
+  #!!     - interproscan@5.63-95.0
+  #!!     # icedtea and gtkplus are nested enormous nextflow dependencies so we expose them
+  #!!     - &gtkplus gtkplus@3.24.29 ~cups ~strip build_system=meson
+  #!!     - !cat &icedtea 
+  #!!       - icedtea@3.9.0 ~X ~shenandoah
+  #!!       - !spec {depends: *gtkplus}
+  #!!     - !cat
+  #!!       - nextflow@23.10.0
+  #!!       - !spec {depends: *icedtea}
+  #!!     - spades@3.15.5
+  #!! - - !loop_depends
+  #!!     base: !cat
+  #!!     - *python
+  #!!     - !spec 
+  #!!       compiler: *gcc
+  #!!       arch: *arch
+  #!!     specs:
+  #!!     - py-cutadapt@4.4
+  #!!     - !cat
+  #!!       - busco@5.4.3
+  #!!       - !spec {depends: *boost}
+  #!!       - !spec {depends: *py-matplotlib}
+  #!!       - !spec {depends: *py-biopython}
+  #!!       - !spec {depends: py-numpy /ijpdkyb}
+  #!!       - !spec {depends: *py-pandas}
   # discarded namd here but check commit 13de509f9e on spack fork
   # duplicate standard programs on intel
   - - !compiled
@@ -694,6 +731,7 @@ spack:
       arch: *arch
       specs:
       - *openblas
+      - anaconda3@2023.09-0 
   # intel python
   - - !compiled
       compiler: *intel
