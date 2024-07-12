@@ -673,6 +673,9 @@ spack:
           - !spec {depends: *gtkplus}
         - !cat
           - nextflow@23.10.0
+          # implemented kludge for JDK via 
+          #   https://github.com/spack/spack/issues/27666#issuecomment-1710418231
+          #! - !spec {depends: jdk@14.0.1_openjdk}
           - !spec {depends: *icedtea}
   #! retired the below and trying again with some of them
   #!! - - !loop_depends
