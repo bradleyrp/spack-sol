@@ -34,6 +34,10 @@ class Jdk(Package):
     # found in a link above. The build number can be deciphered from the URL.
     # Alternatively, run `bin/java -version` after extracting. Replace '+'
     # symbol in version with '_', otherwise it will be interpreted as a variant
+    
+    # rpb222 adds kludge here and below via
+    #   https://github.com/spack/spack/issues/27666#issuecomment-1710418231
+    version('14.0.1_openjdk', sha256='22ce248e0bd69f23028625bede9d1b3080935b68d011eaaf9e241f84d6b9c4cc', url='https://download.java.net/java/GA/jdk14.0.1/664493ef4a6946b186ff29eb326336a2/7/GPL/openjdk-14.0.1_linux-x64_bin.tar.gz')
     version(
         "14_36",
         sha256="4639bbaecc9cc606f1a4b99fda1efcaefcbf57a7025b3828b095093a6c866afd",
@@ -126,9 +130,10 @@ class Jdk(Package):
     def determine_version(cls, exe):
         output = Executable(exe)("-version", output=str, error=str)
 
-        # Make sure this is actually Oracle JDK, not OpenJDK
-        if "openjdk" in output:
-            return None
+        # rpb222 implements kludge mentioned above
+        #! # Make sure this is actually Oracle JDK, not OpenJDK
+        #! if "openjdk" in output:
+        #!     return None
 
         match = re.search(r"\(build (\S+)\)", output)
         return match.group(1).replace("+", "_") if match else None
