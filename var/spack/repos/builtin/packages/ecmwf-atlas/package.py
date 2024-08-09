@@ -76,6 +76,11 @@ class EcmwfAtlas(CMakePackage):
 
     @when("+fismahigh")
     def patch(self):
+        # rpb222 may fix the following W605 syntax warnings which are mysteriously promoted to 
+        #   SyntaxError possibly by warnings.simplefilter('error') in overspack.merge
+        #   however we conclude there must be some weird caching behavior, because running
+        #   the code once with this filter disabled causes it to work even after I enable
+        #   it and retain the invalid escape character below
         filter_file("http://www\.ecmwf\.int", "", "cmake/atlas-import.cmake.in")  # noqa: W605
         filter_file("int\.ecmwf", "", "cmake/atlas-import.cmake.in")  # noqa: W605
         filter_file('http[^"]+', "", "cmake/atlas_export.cmake")

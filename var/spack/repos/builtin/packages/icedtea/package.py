@@ -72,6 +72,11 @@ class Icedtea(AutotoolsPackage):
     depends_on("zlib-api")
     depends_on("alsa-lib", when="platform=linux")
 
+    # rpb222 adds the following per instructions from a failed build
+    depends_on("autoconf", type="build", when="@3.9.0 build_system=autotools")
+    depends_on("automake", type="build", when="@3.9.0 build_system=autotools")
+    depends_on("libtool", type="build", when="@3.9.0 build_system=autotools")
+
     provides("java@8", when="@3.4.0:3")
 
     force_autoreconf = True
@@ -160,7 +165,8 @@ class Icedtea(AutotoolsPackage):
             args.append("--with-hotspot-src-zip=" + self.stage[9].archive_file)
             args.append("--with-hotspot-checksum=no")
         else:
-            args.append("--with-hotspot-src-zip=" + self.stage[2].archive_file)
+            # rpb222 issue, no stage index 2 here so we remove and try again
+            #   args.append("--with-hotspot-src-zip=" + self.stage[2].archive_file)
             args.append("--with-hotspot-checksum=no")
         args += [
             "--with-corba-src-zip=" + self.stage[1].archive_file,

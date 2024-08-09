@@ -19,7 +19,6 @@ from spack.build_environment import dso_suffix
 from spack.operating_systems.mac_os import macos_sdk_path, macos_version
 from spack.package import *
 
-
 class Gcc(AutotoolsPackage, GNUMirrorPackage):
     """The GNU Compiler Collection includes front ends for C, C++, Objective-C,
     Fortran, Ada, and Go, as well as libraries for these languages."""
