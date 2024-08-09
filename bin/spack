@@ -30,6 +30,7 @@ import os.path
 import sys
 
 min_python3 = (3, 6)
+max_python3 = (3, 10)
 
 if sys.version_info[:2] < min_python3:
     v_info = sys.version_info[:3]

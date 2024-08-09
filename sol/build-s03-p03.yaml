@@ -666,17 +666,50 @@ spack:
         compiler: *gcc
         arch: *arch
       specs:
+        # dev: these are all failing due to problems with icedtea
         # icedtea and gtkplus are nested enormous nextflow dependencies so we expose them
-        - &gtkplus gtkplus@3.24.29 ~cups ~strip build_system=meson
-        - !cat &icedtea 
-          - icedtea@3.9.0 ~X ~shenandoah
-          - !spec {depends: *gtkplus}
-        - !cat
-          - nextflow@23.10.0
-          # implemented kludge for JDK via 
-          #   https://github.com/spack/spack/issues/27666#issuecomment-1710418231
-          #! - !spec {depends: jdk@14.0.1_openjdk}
-          - !spec {depends: *icedtea}
+        # - &gtkplus gtkplus@3.24.29 ~cups ~strip build_system=meson
+        # - !cat &icedtea 
+        #   - icedtea@3.9.0 ~X ~shenandoah
+        #   - !spec {depends: *gtkplus}
+        #   - !spec {depends: jdk@14.0.1_openjdk}
+        # - !cat
+        #   - nextflow@23.10.0
+        #   # implemented kludge for JDK via 
+        #   #   https://github.com/spack/spack/issues/27666#issuecomment-1710418231
+        #   - !spec {depends: jdk@14.0.1_openjdk}
+        #   - !spec {depends: *icedtea}
+        - spades@3.15.5
+        - interproscan@5.63-95.0
+  - - !loop_depends
+      base: !cat
+      - *python
+      - !spec 
+        compiler: *gcc
+        arch: *arch
+      specs:
+      - !cat &py-pandas 
+        - py-pandas
+        - !spec {depends: py-numpy /ijpdkyb}
+      - !cat
+        - &py-biopython py-biopython
+        - !spec {depends: py-numpy /ijpdkyb}
+      - py-cutadapt@4.4
+      - !cat 
+        - py-checkm-genome
+        # note that we have an error when we pin explicitly to py-matplotlib /tbuqzgi
+        - !spec {depends: *py-matplotlib}
+        - !spec {depends: py-numpy /ijpdkyb}
+      # dev: busco fails with augustus libdeflate linking error
+      # - !cat
+      #   - busco@5.4.3
+      #   - !spec {depends: *boost}
+      #   - !spec {depends: *py-matplotlib}
+      #   - !spec {depends: *py-biopython}
+      #   - !spec {depends: py-numpy /ijpdkyb}
+      #   - !spec {depends: *py-pandas}
+      #   # dev: we need an older samtools for sam.h for busco
+      #   - !spec {depends: samtools@1.13}
   #! retired the below and trying again with some of them
   #!! - - !loop_depends
   #!!     base: !cat
