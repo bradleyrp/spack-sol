@@ -756,6 +756,37 @@ spack:
   #!!       - !spec {depends: py-numpy /ijpdkyb}
   #!!       - !spec {depends: *py-pandas}
   # discarded namd here but check commit 13de509f9e on spack fork
+  # attempting to compile llvm to support julia, but this will have to be 
+  #   extracted later
+  #! - - !compiled
+  #!     compiler: *gcc
+  #!     arch: *arch
+  #!     specs: 
+  #!     - &llvm 
+  #!       llvm@14.0.6 +clang ~cuda ~flang +gold ~ipo +libomptarget
+  #!       ~libomptarget_debug +link_llvm_dylib +lld +lldb +llvm_dylib +lua
+  #!       ~mlir +polly ~python ~split_dwarf ~z3 build_system=cmake
+  #!       build_type=Release compiler-rt=runtime generator=ninja libcxx=runtime
+  #!       libunwind=none openmp=runtime shlib_symbol_version=JL_LLVM_14.0
+  #!       targets=all,amdgpu,bpf,nvptx,webassembly version_suffix=jl
+  #! julia for ada823
+  #! - - !loop_depends
+  #!     base: !cat
+  #!     - *python
+  #!     - !spec 
+  #!       compiler: *gcc
+  #!       arch: *arch
+  #!     specs:
+  #!     - !cat
+  #!       - julia@1.9.2 
+  #!       #! match this after - !spec {depends: *llvm}
+  #!       - !spec {depends: intel-oneapi-mkl /kxa4tul}
+  #!       - !spec {depends: metis /qvidleq}
+
+  ###
+  ### INTEL
+  ###
+
   # duplicate standard programs on intel
   - - !compiled
       compiler: *intel
