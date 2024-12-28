@@ -1,0 +1,170 @@
+spack:
+  # CUSTOM MODULES
+  # these modifications blacklist the system compiler to make Core packages
+  # this streamlines the lmod tree that we expose to the users
+  # dev: could have sworn you could not set this, but now it is required or else
+  #   we have collisions
+  view: false
+  concretizer: 
+    # note that things were unified without asking when we ask for two very
+    #   similar openmpi packages, but we could probably switch to when_possible
+    unify: true
+    reuse: true
+    duplicates:
+      strategy: none
+  modules:
+    # configurations for a module set
+    default:
+      roots:
+        lmod: $SPACK_ENV/lmod
+      arch_folder: false
+      lmod:
+        core_compilers:
+        - &gcc_back !system_compiler
+        hierarchy:
+        - compiler
+        - mpi
+        exclude:
+        - !cat ['%', *gcc_back]
+        - lmod
+        include:
+        - gcc
+        - openmpi
+        - intel-oneapi-compilers
+        - intel-oneapi-mpi
+        exclude_implicits: true
+        projections:
+          all: '{name}/{version}'
+          'openmpi fabrics=none': '{name}-intra/{version}'
+        hash_length: 0
+  # pack the install root with the superspec
+  config:
+    install_tree:
+      root: /share/Apps/build/cascade24v2/marianatrenchbuildsite
+    build_stage:
+    - $LOCAL_SCRATCH
+    - $TMPDIR
+  # EXTERNAL packages
+  packages:
+    slurm:
+      buildable: false
+      externals:
+      - spec: slurm@23.02.8 
+        prefix: /usr/local/slurm
+  # specs in a superspec format, using list of lists
+  # GCC + MPI
+  specs: !flatten
+  - - - !cat
+        - &gcc gcc@12.4.0
+        - !spec {compiler: *gcc_back}
+        - &arch arch=linux-almalinux9-cascadelake
+    - !compiled
+      compiler: *gcc
+      specs: 
+      - !cat
+        - lmod@8.7.37 auto_swap=true build_system=autotools  
+    # gcc CUDA and ucx for openmpi
+    - !compiled
+      compiler: !cat [*gcc, *arch]
+      specs:
+      - &cuda cuda@12.4.0 +allow-unsupported-compilers
+      - &cmake cmake@3.30.5 ~qtgui ^curl +libidn2
+      #! - ucx@1.17.0 ^rdma-core ~man_pages
+      - &ucx !cat
+        # we opt-in to cma, cuda, dc, dm, ib_hw_tm, rc
+        #   thread_multiple, ud
+        # - ucx@1.17.0 ~optimizations ~cma ~dc ~dm ~knem +rdmacm ~rocm +verbs +xpmem
+        # opt-in to cma, dc, dm, ib_hw_tm, mlx5_dv, rc, ud, verbs
+        # withhold pending knem and xpmem kernel modules
+        - ucx@1.17.0
+          ~assertions
+          ~backtrace_detail
+          +cma
+          +cuda
+          +dc
+          ~debug
+          +dm
+          +examples
+          ~gdrcopy
+          ~gtest
+          +ib_hw_tm
+          ~java
+          ~knem
+          ~logging
+          +mlx5_dv
+          +openmp
+          +optimizations
+          ~parameter_checking
+          +pic
+          +rc
+          +rdmacm
+          ~rocm
+          ~thread_multiple
+          ~ucg
+          +ud
+          +verbs
+          ~vfs
+          ~xpmem 
+          build_system=autotools
+          libs=shared,static
+          opt=3 
+          simd=auto 
+          cuda_arch=75,80,86,89
+          #! ~assertions ~backtrace_detail 
+          #! +cma ~cuda +dc ~debug +dm 
+          #! +examples ~gdrcopy ~gtest +ib_hw_tm 
+          #! ~java ~knem ~logging ~mlx5_dv 
+          #! +openmp opt=3 +optimizations 
+          #! ~parameter_checking +pic 
+          #! +rc +rdmacm ~rocm simd=auto
+          #! +thread_multiple 
+          #! ~ucg +ud +verbs ~vfs ~xpmem
+          #! cuda_arch=75,80,86,89
+          # PENDING: ask for the knem module and recompile!
+        - !spec {depends: *cuda}
+        #! - !spec {depends: hwloc +cuda}
+        # this is creating too many dependencies
+        - !spec {depends: rdma-core ~man_pages}
+    # mpi: openmpi 5
+    - - &ompi5 !cat
+        - !cat
+          - &ompi-base openmpi@5.0.5
+          - !spec {compiler: *gcc}
+          - &ompi-variants 
+            +atomics +cuda ~debug ~gpfs 
+            ~internal-hwloc ~internal-libevent ~internal-pmix 
+            ~java ~lustre ~memchecker
+            ~openshmem ~romio +rsh ~static ~two_level_namespace
+            +vt+wrapper-rpath 
+            build_system=autotools 
+            fabrics=cma,ucx
+            schedulers=slurm
+            cuda_arch=75,80,86,89
+          - *arch
+        # spack does not consider external slurm spec, and pmix for slurm 21 must be 3,
+        #   see https://slurm.schedmd.com/mpi_guide.html#open_mpi
+        #! - !spec {depends: *ucx}
+        #! - !spec {depends: *cuda}
+    # include microbenchmarks with the MPI build-s03-p02.yaml stage for quick testing
+    - - !cat
+        - osu-micro-benchmarks
+        - !spec {depends: *ompi5}
+  # INTEL + MPI
+  # note that I installed the compilers at one version and oneapi is detected at another
+  - - - !cat
+        - &intel-compiler intel-oneapi-compilers@2025.0.0
+        - *arch
+        - !spec {compiler: *gcc_back}
+    - - &intel-mpi !cat
+        - !cat
+          - &intel-mpi-base intel-oneapi-mpi@2021.12.1
+          - !spec 
+            compiler: &intel oneapi@2025
+          - &intel-mpi-variants 
+            +envmods ~external-libfabric ~generic-names ~ilp64 
+            build_system=generic 
+          - *arch
+    # include microbenchmarks with the MPI build-s03-p02.yaml stage for quick testing
+    - - !cat
+        - osu-micro-benchmarks
+        - !spec {depends: *intel-mpi}

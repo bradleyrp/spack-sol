@@ -1,0 +1,881 @@
+spack:
+  # CUSTOM MODULES
+  # these modifications blacklist the system compiler to make Core packages
+  # this streamlines the lmod tree that we expose to the users
+  # dev: could have sworn you could not set this, but now it is required or else
+  #   we have collisions
+  view: false
+  concretizer: 
+    # note that things were unified without asking when we ask for two very
+    #   similar openmpi packages, but we could probably switch to when_possible
+    unify: false
+    reuse: false
+  modules:
+    # configurations for a module set
+    default:
+      roots:
+        lmod: ./lmod
+      arch_folder: false
+      lmod:
+        core_compilers:
+        - &gcc_back !system_compiler
+        hierarchy:
+        - compiler
+        - mpi
+        exclude:
+        - !cat ['%', *gcc_back]
+        - lmod
+        - cmake
+        include:
+        - gcc
+        - openmpi
+        - intel-oneapi-compilers
+        - intel-oneapi-mpi
+        # exclude cmake above and include this one because we design it to be reused with
+        #   intel-oneapi-mkl that supports R to reduce redundancy
+        - cmake ^curl +libidn2
+        # whenever a modulefile refers to a custom projection
+        #   note that we use Core specs to stage the modules before modulefix functions
+        core_specs:
+        # match these core specs with the projections below
+        - ^r
+        - build_system=python_pip ^python
+        # python has some additional packages with build_system=generic
+        - py-pip
+        - py-wheel
+        - py-setuptools
+        - py-pybind11
+        # it is critical that we avoid excluding implicits or for example py-matplotlib will
+        #   not include the PYTHONPATH for a run dependency, py-pillow in the modulefile. for
+        #   some reason this was not an issue with R and its dependent packages. note also that
+        #   it is extremely tricky to test this. you need a completely new session or else a success
+        #   will keep your PYTHONPATH correct between tests! make sure to test in a completely
+        #   fresh session. lastly, we had to trim the modulerc files a bit to account for our
+        #   module shuffling, or else we got errors when it tried to hide a python with a hash on it
+        #   see sol_custom.custom.fix_python_modulerc
+        exclude_implicits: false
+        # this is critical to ensuring that PYTHONPATH for packages such as py-matplotlib
+        #   includes all of the correct modules. this might be a change in spack v0.21 that did
+        #   not make its way into the docs, see https://github.com/spack/spack/issues/42535
+        hide_implicits: true
+        hash_length: 0
+        projections:
+          # gromacs has a cuFFTMp variant
+          gromacs +cufftmp: 'gromacs/{version}-cufftmp'
+          # other modifications. if dependeng on mpi, we do not include this here yet
+          boost +container: '{name}/{version}-plus'
+          # r+X requires a separate tree
+          #   osp alias --suffix 'X' --func 'lambda p:(p.variants["X"].value==True and p.name=="r")' 
+          #! r +X: '{name}/{version}-X'
+          #! ^r +X ^mpi: 'r-{^r.version}-{compiler.name}-{compiler.version}-{^mpi.name}-{^mpi.version}__X/{name}/{version}'
+          #! ^r +X: 'r-{^r.version}-{compiler.name}-{compiler.version}__X/{name}/{version}' 
+          # python +tkinter requires an entirely separate tree
+          # follow the suffix and register with 
+          #   osp alias --suffix 'pytk' --func 'lambda p:(p.variants["tkinter"].value==True and p.name=="python")' 
+          python +tkinter: '{name}/{version}-pytk'
+          build_system=python_pip ^python +tkinter ^mpi: &py-mpi-pro-pytk 'py-{^python.version}-{compiler.name}-{compiler.version}-{^mpi.name}-{^mpi.version}__pytk/{name}/{version}'
+          build_system=python_pip ^python +tkinter: &py-pro-pytk 'py-{^python.version}-{compiler.name}-{compiler.version}__pytk/{name}/{version}' 
+          # some python packages have build_system=generic so we have to single them out here, and below
+          py-pip ^python +tkinter: *py-pro-pytk
+          py-setuptools ^python +tkinter: *py-pro-pytk 
+          py-wheel ^python +tkinter: *py-pro-pytk
+          py-pybind11 ^python +tkinter: *py-pro-pytk
+          # standard python tree
+          build_system=python_pip ^python ^mpi: &py-mpi-pro 'py-{^python.version}-{compiler.name}-{compiler.version}-{^mpi.name}-{^mpi.version}/{name}/{version}'
+          build_system=python_pip ^python: &py-pro 'py-{^python.version}-{compiler.name}-{compiler.version}/{name}/{version}' 
+          # standard R tree
+          ^r ^mpi: 'r-{^r.version}-{compiler.name}-{compiler.version}-{^mpi.name}-{^mpi.version}/{name}/{version}'
+          ^r: 'r-{^r.version}-{compiler.name}-{compiler.version}/{name}/{version}'
+          py-pip ^python: *py-pro
+          py-setuptools ^python: *py-pro
+          py-wheel ^python: *py-pro
+          py-pybind11 ^python: *py-pro
+          # NAMD has a GPU version
+          namd +cuda: 'namd-gpu/{version}'
+          all: '{name}/{version}'
+        # gromacs +cufftmp throws "WARN: NCCL library not found" unless we link
+        nvhpc:
+          environment:
+            prepend_path:
+              LD_LIBRARY_PATH: '{prefix}/Linux_{target.family}/{version}/comm_libs/nccl/lib'
+        # other module extensions are in spack/etc/templates/lmod.lua
+        #   for example the defintions of LOCAL_SCRATCH and CEPHFS_SCRATCH
+        all:
+          autoload: all
+          environment:
+            set:
+              'LURC_{name}_DIR': '{prefix}'
+      # recover the LD_LIBRARY_PATH behavior
+      #   this was prompted by sundials
+      prefix_inspections:
+        ./lib64: [LD_LIBRARY_PATH]  
+        ./lib: [LD_LIBRARY_PATH]
+        ./include: [C_INCLUDE_PATH,CPLUS_INCLUDE_PATH]
+  config:
+    build_stage:
+    - $LOCAL_SCRATCH
+    - $TMPDIR
+  # EXTERNAL packages
+  packages:
+    slurm:
+      buildable: false
+      externals:
+      - spec: slurm@21.08.8-2 
+        prefix: /usr/local/slurm
+    hcoll:
+      buildable: false
+      externals:
+      - spec: hcoll@4.8
+        prefix: /opt/mellanox/hpcx/hcoll
+    # see issue https://github.com/spack/spack/issues/37172
+    bison:
+      require: "%gcc"
+    # PINNING
+    gcc@12.3.0:
+      buildable: false
+      externals:
+      - spec: gcc@12.3.0%gcc@8.5.0~binutils+bootstrap~graphite~nvptx~piclibs~profiled~strip build_system=autotools build_type=RelWithDebInfo languages=c,c++,fortran arch=linux-centos8-icelake
+        prefix: /share/Apps/ice24v1/linux-centos8-icelake/gcc-8.5.0/gcc-12.3.0-bsunvrosg6jgrb6oov6phkp5ptzuqqly
+    gcc@12.1.0:
+      buildable: false
+      externals:
+      # added from build-s03-p02b.yaml for amber23
+      - spec: gcc@12.1.0%gcc@8.5.0~binutils+bootstrap~graphite~nvptx~piclibs~profiled~strip build_system=autotools build_type=RelWithDebInfo languages=c,c++,fortran patches=cc6112d arch=linux-centos8-icelake
+        prefix: /share/Apps/ice24v1/linux-centos8-icelake/gcc-8.5.0/gcc-12.1.0-xgc6dedxnbsd3o2mptgdlcigj3k2tswx
+    openmpi:
+      buildable: false
+      externals: 
+      - spec: openmpi@4.1.6%gcc@12.3.0+atomics+cuda~cxx~cxx_exceptions~gpfs~internal-hwloc~internal-pmix~java+legacylaunchers~lustre~memchecker~openshmem~orterunprefix+pmi+romio+rsh~singularity+static+vt+wrapper-rpath build_system=autotools cuda_arch=89 fabrics=cma,hcoll,knem,ucx,xpmem schedulers=slurm arch=linux-centos8-icelake
+        prefix: /share/Apps/ice24v1/linux-centos8-icelake/gcc-12.3.0/openmpi-4.1.6-as7ukvqajqdnklhutbmh46epxpdg7uel
+      # added from build-s03-p02b.yaml for amber23
+      - spec: openmpi@4.1.6%gcc@12.1.0+atomics+cuda~cxx~cxx_exceptions~gpfs~internal-hwloc~internal-pmix~java+legacylaunchers~lustre~memchecker~openshmem~orterunprefix+pmi+romio+rsh~singularity+static+vt+wrapper-rpath build_system=autotools cuda_arch=89 fabrics=cma,hcoll,knem,ucx schedulers=slurm arch=linux-centos8-icelake
+        prefix: /share/Apps/ice24v1/linux-centos8-icelake/gcc-12.1.0/openmpi-4.1.6-cnaprtlxpxbxmk7evpnjyh6nivmmni6e
+    intel-oneapi-compilers:
+      buildable: false
+      externals:
+      - spec: intel-oneapi-compilers@2023.2.1%gcc@8.5.0+envmods build_system=generic arch=linux-centos8-icelake
+        prefix: /share/Apps/ice24v1/linux-centos8-icelake/gcc-8.5.0/intel-oneapi-compilers-2023.2.1-xzbykavhswznxe3a7rnwfociigkqbbe5
+    intel-oneapi-mpi:
+      buildable: false
+      externals:
+      - spec: intel-oneapi-mpi@2021.10.0%oneapi@2023.2.0+envmods~external-libfabric~generic-names~ilp64 build_system=generic arch=linux-centos8-icelake
+        prefix: /share/Apps/ice24v1/linux-centos8-icelake/oneapi-2023.2.0/intel-oneapi-mpi-2021.10.0-umeoaxviwhl3naan6wtfayripnetzoei
+    ucx:
+      buildable: false
+      externals:
+      - spec: !cat
+        - &ucx-external ucx@1.16.0~assertions~backtrace_detail+cma+cuda+dc~debug+dm+examples+gdrcopy~gtest+ib_hw_tm~java+knem~logging+mlx5_dv+openmp+optimizations~parameter_checking+pic+rc+rdmacm~rocm+thread_multiple~ucg+ud+verbs~vfs+xpmem build_system=autotools cuda_arch=89 libs=shared,static opt=3 simd=auto arch=linux-centos8-icelake
+        - '%gcc@12.3.0'
+        prefix: /share/Apps/ice24v1/linux-centos8-icelake/gcc-12.3.0/ucx-1.16.0-bnuqwsgvjmmvp54nzwjxxogewl4kgd2c
+  # specs in a superspec format, using list of lists
+  # GCC + MPI
+  specs: !flatten
+  - - - !cat
+        - &gcc gcc@12.3.0
+        - !spec {compiler: *gcc_back}
+  # parallel tree with older versions for Amber 23
+  #   added from build-s03-p02b.yaml for amber23
+  - - - !cat
+        - &gcc gcc@12.1.0
+        - !spec {compiler: *gcc_back}
+  - - !compiled
+      compiler: &gcc-prev gcc@12.1.0
+      arch: arch=linux-centos8-icelake
+      specs:
+      - cuda@12.0.1
+      # beware careful construction of cmake that faces the user
+      - &perl-gcc_12_1 perl@5.38.0 +cpanm+open+shared+threads build_system=generic
+      - !cat
+        - cmake@3.27.7 
+        # marking the default so that this cmake propagates to e.g. tbb, mkl
+        #   and compiles a single default tbb, mkl also usable with R
+        - !spec {depends: curl +libidn2}
+        - !spec {depends: *perl-gcc_12_1}
+    - - !cat
+        - !cat
+          - openmpi@4.1.6
+          - !spec {compiler: *gcc-prev}
+          - +atomics +cuda ~cxx ~cxx_exceptions ~gpfs 
+            ~internal-hwloc ~java +legacylaunchers ~lustre ~memchecker +pmi
+            +romio +rsh ~singularity 
+            fabrics=cma,hcoll,knem,ucx
+            schedulers=slurm
+            cuda_arch=89
+          - arch=linux-centos8-icelake
+  # BUILD verbatim on top of build-s03-p02.yaml
+  # depends on gcc 
+  - &gcc-all
+    - !compiled
+      compiler: &gcc gcc@12.3.0 
+      arch: &arch arch=linux-centos8-icelake
+      specs: !flatten
+      - &compiled-specs
+        # beware careful construction of cmake that faces the user
+        - &perl perl@5.38.0 +cpanm+open+shared+threads build_system=generic
+        - !cat &cmake
+          - cmake@3.27.7 
+          # marking the default so that this cmake propagates to e.g. tbb, mkl
+          #   and compiles a single default tbb, mkl also usable with R
+          - !spec {depends: &curl-libidn2 curl +libidn2}
+          - !spec {depends: *perl}
+        - zlib@1.3 +optimize+pic+shared build_system=makefile
+        - bzip2@1.0.8 ~debug~pic+shared build_system=generic
+        - &openjdk openjdk@11.0.20.1_1
+        - &tbb !cat
+          - intel-tbb@2021.9.0
+          - ~ipo +shared +tm
+          - !spec {depends: *cmake}
+        - &git git@2.42.0
+        - &git-lfs git-lfs@3.3.0
+    # gcc CUDA for openmpi
+    - !compiled
+      compiler: *gcc
+      arch: *arch
+      specs:
+      - &cuda cuda@12.2.1
+      - cuda@12.1.1
+      - cuda@12.0.1
+      - &nvhpc nvhpc@23.9 +blas+lapack~mpi
+    # mpi: openmpi 4
+    - - &ompi4 !cat
+        - !cat
+          - &ompi-base openmpi@4.1.6
+          - !spec {compiler: *gcc}
+          - &ompi-variants +atomics +cuda ~cxx ~cxx_exceptions ~gpfs 
+            ~internal-hwloc ~java +legacylaunchers ~lustre ~memchecker +pmi
+            +romio +rsh ~singularity 
+            fabrics=cma,hcoll,knem,ucx,xpmem
+            schedulers=slurm
+            cuda_arch=89
+          - *arch
+    # gcc exclusives 
+    - !compiled
+      compiler: *gcc
+      arch: *arch
+      specs:
+      - !cat &openblas
+        - openblas@0.3.24 
+        - ~bignuma ~consistent_fpcsr +fortran ~ilp64 +locking +pic +shared
+      - anaconda3@2023.09-0 
+      - &eigen eigen
+      - pugixml
+      - !cat &metis 
+        - !cat
+          - metis@5.1.0
+          # defensively adding the compiler and arch otherwise it applies to the curl
+          #   dependency only
+          # dev: we need to place the compiler earlier in the list or it applies downstream
+          #   see the abandoned spec_reformed function which sought to address this until
+          #   we cleaned up the tree
+          - *arch
+        - ~gdb ~int64 ~ipo ~real64 +shared
+        - !spec {depends: *curl-libidn2}
+      # for dar421
+      - duckdb@0.8.1
+  # INTEL + MPI
+  # note that I installed the compilers at one version and oneapi is detected at another
+  - - - !cat
+        - &intel-compiler intel-oneapi-compilers@2023
+        - *arch
+        - !spec {compiler: *gcc_back}
+    - - &intel-mpi !cat
+        - !cat
+          - &intel-mpi-base intel-oneapi-mpi@2021.10.0
+          - !spec {compiler: &intel oneapi@2023}
+          - &intel-mpi-variants 
+            +envmods ~external-libfabric ~generic-names ~ilp64 
+            build_system=generic 
+          - *arch
+    # Intel CUDA 
+    - !compiled
+      compiler: *intel
+      arch: *arch
+      specs:
+      - &cuda cuda@12.2.1
+      - cuda@12.1.1
+  # depends on gcc, openmpi
+  - - !loop_depends
+      base: *ompi4
+      specs: &mpi-general 
+      - osu-micro-benchmarks@7.1-1
+      - !cat &hdf5 
+        - hdf5@1.14.1-2 +cxx +fortran +hl 
+      - !cat &netcdf-c
+        - netcdf-c@4.9.2
+        - !spec {depends: *hdf5}
+      - !cat
+        - &netcdf-cxx netcdf-cxx4@4.3.1
+        - !spec {depends: *netcdf-c}
+      - &mkl !cat 
+        - &mkl-base intel-oneapi-mkl@2023.2.0
+        - &mkl-variants +cluster +envmods ~ilp64 +shared threads=tbb mpi_family=openmpi
+        - !spec {depends: *tbb}
+      - &netcdf-fortran !cat
+        - netcdf-fortran@4.6.1 ~doc +pic +shared
+        - !spec {depends: *netcdf-c}
+      - &parallel-netcdf parallel-netcdf@1.12.3 ~burstbuffer +cxx +fortran +pic +shared
+  # gcc python
+  - - !compiled
+      compiler: *gcc
+      arch: *arch
+      specs:
+      - !cat &python
+        - python@3.11.6
+        - build_system=generic +bz2 +ctypes +dbm ~debug +libxml2 +lzma ~nis
+          +optimizations +pic +pyexpat +pythoncmd +readline +shared
+          +sqlite3 +ssl +uuid +zlib
+  - - !loop_depends
+      base: !cat
+      - *python
+      - !spec 
+        compiler: *gcc
+        arch: *arch
+      # note that the wheel, pip, setuptools, supporting cython are ad hoc here,
+      #   but for intel below we make them more explicit
+      specs: &python-support
+      - py-setuptools@68.0.0
+      - py-wheel@0.41.2
+      - py-pip@23.1.2
+      - py-packaging@23.1
+      - &py-scm py-setuptools-scm@7.1.0
+      - &py-cython py-cython@3.0.4
+      - &py-cython-29 py-cython@0.29.36
+  - - !loop_depends
+      base: *ompi4
+      specs:
+      # NOTE: are you using py-numpy in a non-python package? then say so over in
+      #   sol-custom/sol_custom/custom.py
+      # NOTE: below we pin against py-numpy /ijpdkyb
+      - !cat &py-numpy
+        - &py-numpy-ver py-numpy@1.26.1
+        - !spec {depends: *mkl}
+        - !spec {depends: *py-cython-29}
+        - !spec {depends: *python}
+      - !cat &py-scipy
+        - &py-scipy-ver py-scipy@1.11.3
+        - !spec {depends: *py-numpy}
+  - - !loop_depends
+      base: !cat
+      - *python
+      - !spec 
+        compiler: *gcc
+        arch: *arch
+      specs:
+      # pinning against this hash later via py-matplotlib /tbuqzgi
+      - !cat &py-matplotlib 
+        - py-matplotlib
+        - !spec {depends: *py-numpy}
+        - !spec {depends: *ompi4}
+        - !spec {depends: *git}
+        - !spec {depends: *py-scm}
+  # gcc python +tkinter
+  - - !compiled
+      compiler: *gcc
+      arch: *arch
+      specs:
+      - &tk tk@8.6.11 +xft +xss
+      - !cat &python-tk
+        - python@3.11.6
+        - build_system=generic +bz2 +ctypes +dbm ~debug +libxml2 +lzma ~nis
+          +optimizations +pic +pyexpat +pythoncmd +readline +shared
+          +sqlite3 +ssl +uuid +zlib
+        - +tkinter
+        - !spec {depends: *tk}
+  - - !loop_depends
+      base: !cat
+      - *python-tk
+      - !spec 
+        compiler: *gcc
+        arch: *arch
+      specs: *python-support
+  - - !loop_depends
+      base: *ompi4
+      specs:
+      - !cat &py-numpy-tk
+        - py-numpy@1.26.1
+        - !spec {depends: *mkl}
+        - !spec {depends: *py-cython-29}
+        - !spec {depends: *python-tk}
+      - !cat &py-scipy-tk
+        - py-scipy@1.11.3
+        - !spec {depends: *py-numpy-tk}
+  - - !loop_depends
+      base: !cat
+      - *python
+      - !spec 
+        compiler: *gcc
+        arch: *arch
+      specs:
+      - !cat 
+        - py-matplotlib
+        - !spec {depends: *py-numpy-tk}
+        - !spec {depends: *ompi4}
+        - !spec {depends: *git}
+        - !spec {depends: *py-scm}
+  # gcc R
+  - - !compiled
+      compiler: *gcc
+      arch: *arch
+      specs:
+      - !cat &r
+        - &r-ver r@4.3.0
+        # added this line afterwards for clarity
+        - ~X ~memory_profiling ~rmath
+        - build_system=autotools +external-lapack
+        # constrain cmake to reuse tbb and mkl below
+        - !spec {depends: cmake ^curl+libidn2}
+        - !spec {depends: *ompi4}
+        - !spec {depends: *openjdk}
+        # something triggers a change to mkl
+        - !spec {depends: *mkl}
+        - !spec {depends: *tbb}
+    - !loop_depends
+      base: *r
+      specs:
+      - r-dplyr@1.1.2
+      - r-ggplot2@3.4.2
+      - r-bit@4.0.5
+      - r-bit64@4.0.5
+      - r-withr@2.5.0
+      - r-assertthat@0.2.1 
+      - r-magrittr@2.0.3
+      - r-glue@1.6.2
+      - r-rlang@1.1.0
+      - r-r6@2.5.1
+      - r-tidyselect@1.2.0
+      - r-rcpp@1.0.10
+      - r-cli@3.6.1
+      - r-lifecycle@1.0.3
+      - r-vctrs@0.6.2
+      - r-purrr@1.0.1
+      - r-fs@1.6.2
+      - r-lobstr@1.1.2
+      - r-cpp11@0.4.3
+    # bioconductor
+    - !loop_depends
+      base: *r
+      specs:
+      # core items
+      - r-biocmanager
+      - r-biocinstaller
+      # requested
+      - r-biostrings
+      - r-genomicranges
+      # dependents
+      # dev: note that we can hide implicits so these might not strictly be necessary
+      - r-biostrings
+      - r-biocgenerics
+      - r-genomeinfodb
+      - r-genomeinfodbdata
+      - r-rcurl
+      - r-bitops
+      - r-iranges
+      - r-s4vectors
+      - r-xvector
+      - r-zlibbioc
+      - r-genomicranges
+      - r-biocgenerics
+      - r-genomeinfodb
+      - r-genomeinfodbdata
+      - r-rcurl
+      - r-bitops
+      - r-iranges
+      - r-s4vectors
+      - r-xvector
+      - r-zlibbioc
+  # depends on gcc, openmpi, gcc-exclusive
+  - - !loop_depends
+      base: *ompi4
+      specs: 
+      - !cat &py-mpi4py 
+        - py-mpi4py@3.1.4
+        - !spec {depends: *py-cython-29}
+        - !spec {depends: *python}
+      - !cat &parmetis 
+        - parmetis@4.0.3
+        - !spec {depends: *metis}
+  # depends on gcc, openmpi, mkl, cuda
+  - - !builder
+      # note thinking about changing target to one with AVX2_256 because GROMACS
+      #   produces a warning: 
+      #     Compiled SIMD is AVX_512, but AVX2_256 might be faster (see log).
+      #   however we have 2 FMA units on our processors so 512 should be faster
+      suffix: !spec {depends: *ompi4}
+      tail: *mkl
+      specs:
+      - !cat
+        - &gmx-base gromacs@2023.3
+        - &gmx-variants build_system=cmake build_type=Release
+          ~cp2k +cuda cuda_arch=89 ~cycle_subcounters
+          ~double +hwloc ~intel_provided_gcc ~mdrun_only
+          +mpi ~nosuffix ~opencl +openmp openmp_max_threads=none 
+          ~relaxed_double_precision
+          +shared ~sycl
+          ~cufftmp
+        - !spec {depends: *cuda}
+      # alternate copy of gromacs with cuFFTMp
+      - !cat
+        - &gmx-base gromacs@2023.3
+        - &gmx-variants build_system=cmake build_type=Release
+          ~cp2k +cuda cuda_arch=89 ~cycle_subcounters
+          ~double +hwloc ~intel_provided_gcc ~mdrun_only
+          +mpi ~nosuffix ~opencl +openmp openmp_max_threads=none 
+          ~relaxed_double_precision
+          +shared ~sycl
+          +cufftmp
+        - !spec {depends: *nvhpc}
+        - !spec {depends: *cuda}
+  # depends on gcc, openmpi, mkl, cuda
+  - - !builder
+      suffix: !spec {depends: *ompi4}
+      tail: *mkl
+      specs:
+      - !cat
+        - &lammps-base lammps@20230802 
+        - &lammps-variant
+          +asphere +body  build_system=cmake build_type=RelWithDebInfo
+          +class2 +colloid +compress +coreshell
+          +cuda  cuda_arch=89 +cuda_mps 
+          +dipole +exceptions ~ffmpeg +granular ~ipo ~jpeg 
+          +kim ~kokkos 
+          +kspace fftw_precision=double
+          lammps_sizes=smallbig 
+          +lib +manybody +mc +misc +molecule +mpi +mpiio +openmp
+          +opt +peri +png +poems +python +qeq +replica +rigid ~rocm +shock +srd +voronoi
+          +atc +h5md +meam +netcdf +phonon +qtb +reaxff
+          +extra-pair
+        - !spec {depends: *python}
+        - !spec {depends: *py-mpi4py}
+        - !spec {depends: *netcdf-c}
+        # dev: errors on kokkos 
+        #   basically cmake says it cannot get the architecture, even though the value is set properly
+        #   - !spec {depends: kokkos +wrapper +cuda cuda_arch=89}
+        - !spec {depends: *cuda}
+        - !spec {depends: *openblas}
+      # building generic cast of characters
+      - &hypre hypre@2.20.0 +openmp
+      - !cat &superlu-dist
+        - superlu-dist@8.1.2
+        - !spec {depends: *metis}
+        - !spec {depends: *parmetis}
+      - !cat &petsc 
+        - petsc@3.20.1
+        - !spec {depends: *hdf5}
+        - !spec {depends: *hypre}
+        - !spec {depends: *metis}
+        - !spec {depends: *parmetis}
+        - !spec {depends: *superlu-dist}
+        - !spec {depends: *python}
+      - !cat &boost
+        - boost@1.83.0
+          +atomic +chrono ~clanglibcpp ~container ~context ~contract ~coroutine +date_time
+          ~debug +exception ~fiber +filesystem +graph ~graph_parallel ~icu +iostreams 
+          +json +locale +log +math +mpi +multithreaded ~nowide +numpy +pic
+          +program_options +python +random +regex +serialization +shared +signals 
+          ~singlethreaded ~stacktrace +system ~taggedlayout +test +thread +timer 
+          ~type_erasure ~versionedlayout +wave 
+        - !spec {depends: *py-numpy}
+      # adding features, e.g. +container
+      - !cat &boost-plus
+        - boost@1.83.0
+          +atomic +chrono ~clanglibcpp +container ~context ~contract ~coroutine +date_time
+          ~debug +exception ~fiber +filesystem +graph ~graph_parallel ~icu +iostreams 
+          +json +locale +log +math +mpi +multithreaded ~nowide +numpy +pic
+          +program_options +python +random +regex +serialization +shared +signals 
+          ~singlethreaded ~stacktrace +system ~taggedlayout +test +thread +timer 
+          ~type_erasure ~versionedlayout +wave 
+        - !spec {depends: *py-numpy}
+      - !cat
+        - arrow@15.0.1
+          ~brotli ~compute ~cuda ~gandiva ~glog ~hdfs +ipc ~ipo ~jemalloc +lz4 ~orc +parquet
+          +python +shared +snappy ~tensorflow +zlib +zstd
+          +csv
+        - !spec {depends: *boost}
+        - !spec {depends: *py-numpy}
+      - !cat
+        - arrow@10.0.1
+        - !spec {depends: *boost}
+        - !spec {depends: *py-numpy}
+  # requirements for aLENS for div206
+  - - !loop_depends
+      base: *ompi4
+      specs: 
+      # dev: aLENS specifically requests trilinos@12.18 but I get errors
+      - !cat
+        - vtk@9.2.6 
+        - !spec {depends: *netcdf-c}
+        # note that vtk depends on netcdf-cxx@4 and we have netcdf-cxx4 instead
+        - !spec {depends: *eigen}
+      - !cat &trilinos
+        - trilinos@14.4.0
+          +zoltan +zoltan2
+        - !spec {depends: *mkl}
+      # openfoam
+      - !cat
+        - openfoam@2306
+        - !spec {depends: boost /oyfbja6}
+  # wym219 requests
+  # gave up on trinity, and trinotate which requires it
+  - - !compiled
+      compiler: *gcc
+      arch: *arch
+      specs:
+      - &bowtie2 bowtie2@2.5.1
+      - &bowtie bowtie@1.3.1 ~tbb
+      - exonerate@2.4.0
+      - &mafft mafft@7.505
+      - &mcl mcl@14-137 
+      - paml@4.10.3
+      - phylip@3.697
+      - plink@1.07
+      - sratoolkit@3.0.0
+      - transdecoder@5.7.1
+      - vcftools@0.1.16
+      - wise2@2.4.1
+      - fasttree@2.1.11
+  - - - &salmon !cat
+        - salmon@1.10.2
+        - !spec {compiler: *gcc, arch: *arch}
+        - !spec {depends: *boost-plus}
+        - !spec {depends: py-numpy /ijpdkyb}
+        - !spec {depends: *python}
+        - !spec {depends: *mkl}
+  - - !loop_depends
+      base: *ompi4
+      specs: 
+      - raxml@8.2.12
+      - !cat
+        - hyphy@2.5.51hf
+        - !spec {arch: *arch}
+        - !spec {depends: cmake ^curl+libidn2}
+  - - - !cat
+        - orthofinder@2.5.5
+        - !spec {compiler: *gcc, arch: *arch}
+        - !spec {depends: py-numpy /ijpdkyb}
+        - !spec {depends: *mafft}
+        - !spec {depends: *mcl}
+  - - - !cat &iq-tree
+        - iq-tree@2.2.2.7
+        - !spec {compiler: *gcc, arch: *arch}
+        - !spec {depends: *boost-plus}
+        - !spec {depends: *ompi4}
+  - - !loop_depends
+      base: !cat
+      - *python
+      - !spec 
+        compiler: *gcc
+        arch: *arch
+      specs:
+        # dev: these are all failing due to problems with icedtea
+        # icedtea and gtkplus are nested enormous nextflow dependencies so we expose them
+        # - &gtkplus gtkplus@3.24.29 ~cups ~strip build_system=meson
+        # - !cat &icedtea 
+        #   - icedtea@3.9.0 ~X ~shenandoah
+        #   - !spec {depends: *gtkplus}
+        #   - !spec {depends: jdk@14.0.1_openjdk}
+        # - !cat
+        #   - nextflow@23.10.0
+        #   # implemented kludge for JDK via 
+        #   #   https://github.com/spack/spack/issues/27666#issuecomment-1710418231
+        #   - !spec {depends: jdk@14.0.1_openjdk}
+        #   - !spec {depends: *icedtea}
+        - spades@3.15.5
+        - interproscan@5.63-95.0
+  - - !loop_depends
+      base: !cat
+      - *python
+      - !spec 
+        compiler: *gcc
+        arch: *arch
+      specs:
+      - !cat &py-pandas 
+        - py-pandas
+        - !spec {depends: py-numpy /ijpdkyb}
+      - !cat
+        - &py-biopython py-biopython
+        - !spec {depends: py-numpy /ijpdkyb}
+      - py-cutadapt@4.4
+      - !cat 
+        - py-checkm-genome
+        # note that we have an error when we pin explicitly to py-matplotlib /tbuqzgi
+        - !spec {depends: *py-matplotlib}
+        - !spec {depends: py-numpy /ijpdkyb}
+      # dev: busco fails with augustus libdeflate linking error
+      # - !cat
+      #   - busco@5.4.3
+      #   - !spec {depends: *boost}
+      #   - !spec {depends: *py-matplotlib}
+      #   - !spec {depends: *py-biopython}
+      #   - !spec {depends: py-numpy /ijpdkyb}
+      #   - !spec {depends: *py-pandas}
+      #   # dev: we need an older samtools for sam.h for busco
+      #   - !spec {depends: samtools@1.13}
+  #! retired the below and trying again with some of them
+  #!! - - !loop_depends
+  #!!     base: !cat
+  #!!     - *python
+  #!!     - !spec 
+  #!!       compiler: *gcc
+  #!!       arch: *arch
+  #!!     specs:
+  #!!     # wym219 requests
+  #!!     - !cat &py-pandas 
+  #!!       - py-pandas
+  #!!       - !spec {depends: py-numpy /ijpdkyb}
+  #!!     - !cat
+  #!!       - &py-biopython py-biopython
+  #!!       - !spec {depends: py-numpy /ijpdkyb}
+  #!!     - !cat 
+  #!!       - py-checkm-genome
+  #!!       # note that we have an error when we pin explicitly to py-matplotlib /tbuqzgi
+  #!!       - !spec {depends: *py-matplotlib}
+  #!!       - !spec {depends: py-numpy /ijpdkyb}
+  #!!     - interproscan@5.63-95.0
+  #!!     # icedtea and gtkplus are nested enormous nextflow dependencies so we expose them
+  #!!     - &gtkplus gtkplus@3.24.29 ~cups ~strip build_system=meson
+  #!!     - !cat &icedtea 
+  #!!       - icedtea@3.9.0 ~X ~shenandoah
+  #!!       - !spec {depends: *gtkplus}
+  #!!     - !cat
+  #!!       - nextflow@23.10.0
+  #!!       - !spec {depends: *icedtea}
+  #!!     - spades@3.15.5
+  #!! - - !loop_depends
+  #!!     base: !cat
+  #!!     - *python
+  #!!     - !spec 
+  #!!       compiler: *gcc
+  #!!       arch: *arch
+  #!!     specs:
+  #!!     - py-cutadapt@4.4
+  #!!     - !cat
+  #!!       - busco@5.4.3
+  #!!       - !spec {depends: *boost}
+  #!!       - !spec {depends: *py-matplotlib}
+  #!!       - !spec {depends: *py-biopython}
+  #!!       - !spec {depends: py-numpy /ijpdkyb}
+  #!!       - !spec {depends: *py-pandas}
+  # discarded namd here but check commit 13de509f9e on spack fork
+  # attempting to compile llvm to support julia, but this will have to be 
+  #   extracted later
+  #! - - !compiled
+  #!     compiler: *gcc
+  #!     arch: *arch
+  #!     specs: 
+  #!     - &llvm 
+  #!       llvm@14.0.6 +clang ~cuda ~flang +gold ~ipo +libomptarget
+  #!       ~libomptarget_debug +link_llvm_dylib +lld +lldb +llvm_dylib +lua
+  #!       ~mlir +polly ~python ~split_dwarf ~z3 build_system=cmake
+  #!       build_type=Release compiler-rt=runtime generator=ninja libcxx=runtime
+  #!       libunwind=none openmp=runtime shlib_symbol_version=JL_LLVM_14.0
+  #!       targets=all,amdgpu,bpf,nvptx,webassembly version_suffix=jl
+  #! julia for ada823
+  #! - - !loop_depends
+  #!     base: !cat
+  #!     - *python
+  #!     - !spec 
+  #!       compiler: *gcc
+  #!       arch: *arch
+  #!     specs:
+  #!     - !cat
+  #!       - julia@1.9.2 
+  #!       #! match this after - !spec {depends: *llvm}
+  #!       - !spec {depends: intel-oneapi-mkl /kxa4tul}
+  #!       - !spec {depends: metis /qvidleq}
+
+  ###
+  ### INTEL
+  ###
+
+  # duplicate standard programs on intel
+  - - !compiled
+      compiler: *intel
+      arch: *arch
+      specs: *compiled-specs 
+  # intel compiled exclusives
+  - - !compiled
+      compiler: *intel
+      arch: *arch
+      specs:
+      - *openblas
+      - anaconda3@2023.09-0 
+  # intel python
+  - - !compiled
+      compiler: *intel
+      arch: *arch
+      specs:
+      # due to a compiler bug in oneapi explained in the Python Spack package,
+      #   we have to hang out in 2019
+      - !cat
+       - &python-intel python@3.8.18 
+       # failing to add tkinter here for Amber 2023 and AmberTools
+       #   see https://github.com/spack/spack/issues/40553
+       #! - +tkinter
+       #! - ^libxcb +use_spack_interpreter
+       #! - ^xcb-proto +use_spack_interpreter
+  - - !loop_depends
+      base: !cat
+      - *python-intel
+      - !spec 
+        compiler: *intel
+        arch: *arch
+      specs: &python-support-intel
+      # suport for py-cython and hence py-numpy and scipy below is standardized
+      #   around a single py-pip, py-wheel, and py-setuptools at maximum version
+      #   for Python 3.8 which is the highest we can go with %oneapi
+      - &py-setuptools-intel py-setuptools@63.4.3
+      - &py-wheel-intel py-wheel@0.37.1
+      - &py-pip-intel py-pip@23.1.2
+      - !cat 
+        - py-packaging@23.1
+        - !spec {depends: *py-wheel-intel}
+      - !cat &py-cython-29-intel
+        - py-cython@0.29.36
+        - !spec {depends: *py-setuptools-intel}
+        - !spec {depends: *py-wheel-intel}
+        - !spec {depends: *py-pip-intel}
+        - !spec {depends: *python-intel}
+  - - !compiled
+      compiler: *intel
+      arch: *arch
+      specs:
+      - !cat &py-numpy-intel
+        - py-numpy@1.24.4
+        - !spec {depends: *mkl}
+        - !spec {depends: *py-cython-29-intel}
+        - !spec {depends: *intel-mpi-base}
+      - !cat &py-scipy-intel
+        - py-scipy@1.10.1
+        - !spec {depends: *py-cython-29-intel}
+  - - !loop_depends
+      base: !cat
+      - *python-intel
+      - !spec 
+        compiler: *intel
+        arch: *arch
+      specs:
+      - !cat 
+        - py-matplotlib
+        - !spec {depends: *py-numpy-intel}
+        - !spec {depends: *intel-mpi-base}
+        - !spec {depends: *git}
+        - !spec {depends: *py-scm}
+  # depends on intel, intel-mpi
+  - - !loop_depends
+      base: *intel-mpi
+      specs: *mpi-general 
+  - - !loop_depends
+      base: *intel-mpi
+      specs:
+      - hdf5@1.12.2 +cxx +fortran +hl 
+  # discarded namd here but check commit 13de509f9e on spack fork
+  # depends on intel, intel-mpi, exclusives
+  - - !loop_depends
+      base: *intel-mpi
+      specs: 
+      - &hypre-intel !cat
+        - hypre@2.20.0 +openmp +int64
+        - !spec {depends: *mkl}
+      - fftw@3.3.10
+      # discarded sundials here but check commit 13de509f9e on spack fork
+      #   and note that I provided ada823 with a custom solution

@@ -1,0 +1,50 @@
+spack:
+  # CUSTOM MODULES
+  # these modifications blacklist the system compiler to make Core packages
+  # this streamlines the lmod tree that we expose to the users
+  view: false
+  concretizer: 
+    unify: false
+    reuse: false
+  modules:
+    # configurations for a module set
+    default:
+      roots:
+        lmod: $spack_env/lmod
+      arch_folder: true
+      lmod:
+        core_compilers:
+        - &gcc_back !system_compiler
+        hierarchy:
+        - compiler
+        - mpi
+        include:
+        - gcc
+        - intel-oneapi-compilers 
+        exclude:
+        - !cat ['%', *gcc_back]
+        projections:
+          all: '{name}/{version}'
+        hash_length: 0
+  # EXTERNAL packages
+  packages:
+    slurm:
+      buildable: false
+      externals:
+      - spec: slurm@23.02.8
+        prefix: /usr/local/slurm
+  # staging
+  config:
+    # a difference from build-s04 series is lack of $LOCAL_SCRATCH
+    build_stage:
+    - $TMPDIR
+  # specs in a superspec format, using list of lists
+  specs: 
+  - - !cat
+      - &gcc gcc@12.4.0
+      - &arch arch=linux-almalinux9-icelake
+      - !spec {compiler: *gcc_back}
+  - - !cat
+      - &intel intel-oneapi-compilers@2024.1.0
+      - *arch 
+      - !spec {compiler: *gcc_back}

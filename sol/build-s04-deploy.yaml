@@ -1,0 +1,33 @@
+# redirect the build location to an install prefix
+#   which should match the osp shortname in "osp target"
+spack:
+  config:
+    install_tree:
+      root: /share/Apps/cascade24v2
+  modules:
+    default:
+      roots:
+        lmod: /share/Apps/cascade24v2/lmod
+      arch_folder: false
+      # dev: this is overwritten when we build modules so we have to include it here
+      lmod:
+        core_compilers:
+        - &gcc_back !system_compiler
+        hierarchy:
+        - compiler
+        - mpi
+        exclude:
+        - !cat ['%', *gcc_back]
+        - lmod
+        include:
+        - gcc
+        - openmpi
+        - intel-oneapi-compilers
+        - intel-oneapi-mpi
+        exclude_implicits: true
+        projections:
+          all: '{name}/{version}'
+          'openmpi fabrics=none': '{name}-intra/{version}'
+        hash_length: 0
+  mirrors:
+    cascade24v2-build: file:///share/Apps/build/cascade24v2/mirror-spack

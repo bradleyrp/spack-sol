@@ -1,0 +1,179 @@
+spack:
+  # CUSTOM MODULES
+  # these modifications blacklist the system compiler to make Core packages
+  # this streamlines the lmod tree that we expose to the users
+  # dev: could have sworn you could not set this, but now it is required or else
+  #   we have collisions
+  view: false
+  concretizer: 
+    unify: false
+    reuse: false
+  modules:
+    # configurations for a module set
+    default:
+      roots:
+        lmod: ./lmod
+      arch_folder: false
+      lmod:
+        core_compilers:
+        - &gcc_back !system_compiler
+        hierarchy:
+        - compiler
+        - mpi
+        exclude:
+        - !cat ['%', *gcc_back]
+        include:
+        - gcc
+        - intel-oneapi-compilers
+        exclude_implicits: true
+        projections:
+          all: '{name}/{version}'
+          openmpi fabrics=none: 'openmpi-intra/{version}'
+        hash_length: 0
+        # modifications for alignment with the convention on Sol, which includes
+        #   the LURC DIR variables below
+        all:
+          conflict: []
+          load: []
+          autoload: 'direct'
+          environment:
+            set:
+              'LURC_{name}_DIR': '{prefix}'
+      # recover the LD_LIBRARY_PATH 
+      #   note that I am not sure if this is important for 
+      prefix_inspections:
+        ./lib64: [LD_LIBRARY_PATH]  
+        ./lib: [LD_LIBRARY_PATH]
+        ./include: [C_INCLUDE_PATH,CPLUS_INCLUDE_PATH]
+  # dev: try match to external gcc via: spack compiler find --scope env:build <path>
+  #   however pasting that in here does not help and the command is required
+  # EXTERNAL packages
+  # WARNING! Spack does not consider the specs. you must check versions yourself!
+  packages:
+    intel:
+      buildable: false
+      externals:
+      - prefix: /share/Apps/intel-oneapi/2021/compiler/2021.3.0/linux/bin/intel64/icc
+        spec: !cat [intel@2021.3.0, !cat ['%', *gcc_back]]
+    slurm:
+      buildable: false
+      externals:
+      - spec: slurm@21.08.8-2
+        prefix: /usr/local/slurm
+    hcoll:
+      buildable: false
+      externals:
+      - spec: hcoll@4.7.3199
+        prefix: /opt/mellanox/hcoll
+    # prevent issue with seeming arbitrary recompile of gcc
+    # previously also included the intel oneapi location at 
+    #   compiler/2023.1.0/linux/ but this was not strictly required
+    gcc:
+      buildable: false
+      externals:
+      # match this to the backing compiler from the first step
+      - spec: !cat
+        - gcc@12.3.0 %gcc@8.5.0 ~binutils +bootstrap ~graphite ~nvptx ~piclibs
+            ~profiled~ strip build_system=autotools build_type=RelWithDebInfo 
+            languages=c,c++,fortran
+        - &arch arch=linux-centos8-skylake_avx512
+        # receive this from the command line where you must also use "spack compiler find"
+        prefix: /share/Apps/a/linux-centos8-skylake_avx512/gcc-8.5.0/gcc-12.3.0-3hs5ftxmdz4bs52vlgx54m4w3w4ankmu/
+    openmpi:
+      buildable: false
+      externals:
+      - spec: &ompi openmpi@4.1.5%gcc@12.3.0+atomics~cuda~cxx~cxx_exceptions~gpfs~internal-hwloc~java+legacylaunchers~lustre~memchecker~orterunprefix+pmi+romio+rsh~singularity+static+vt+wrapper-rpath build_system=autotools fabrics=cma,hcoll,ofi,ucx schedulers=slurm arch=linux-centos8-skylake_avx512 
+        prefix: /share/Apps/a/linux-centos8-skylake_avx512/gcc-12.3.0/openmpi-4.1.5-zfdeevltj3f2srdhmtc73lqhiit2nf3h 
+      - spec: &ompi-intra openmpi@4.1.5%gcc@12.3.0+atomics~cuda~cxx~cxx_exceptions~gpfs~internal-hwloc~java+legacylaunchers~lustre~memchecker~orterunprefix+pmi+romio+rsh~singularity+static+vt+wrapper-rpath build_system=autotools fabrics=none schedulers=slurm arch=linux-centos8-skylake_avx512
+        prefix: /share/Apps/a/linux-centos8-skylake_avx512/gcc-12.3.0/openmpi-4.1.5-5qgh7ekumu2lqlg7awll5hgf4tun7vnj 
+    mvapich2:
+      buildable: false
+      externals:
+      - spec: &mv2 mvapich2@2.3.7-1%oneapi@2023.1.0~alloca~cuda~debug~hwlocv2+regcache+wrapperrpath build_system=autotools ch3_rank_bits=32 fabrics=mrail file_systems=auto process_managers=hydra threads=single arch=linux-centos8-skylake_avx512 
+        prefix: /share/Apps/a/linux-centos8-skylake_avx512/gcc-12.3.0/openmpi-4.1.5-5qgh7ekumu2lqlg7awll5hgf4tun7vnj 
+  config:
+    build_stage:
+    - $LOCAL_SCRATCH
+    - $TMPDIR
+  # specs in a superspec format, using list of lists
+  # EXTERNAL: compilers
+  specs: !flatten
+  - - - !cat
+        - &gcc gcc@12.3.0
+        - !spec {compiler: *gcc_back}
+  - - - &intel-compiler intel-oneapi-compilers@2023.1.0%gcc@8.5.0+envmods build_system=generic arch=linux-centos8-skylake_avx512
+  # EXTERNAL: MPI
+  - - - *ompi
+  - - - *ompi-intra
+  # depends on gcc 
+  - &gcc-all
+    - !compiled
+      compiler: !cat
+      - *gcc
+      - *arch
+      specs: !flatten
+      - &gcc-specs
+        - &perl perl@5.36.0 +cpanm+open+shared+threads build_system=generic
+        - !cat
+          - cmake@3.26.3
+          - !spec {depends: *perl}
+        - zlib@1.2.13 +optimize+pic+shared build_system=makefile
+        - bzip2@1.0.8 ~debug~pic+shared build_system=generic
+        - openjdk@11.0.17_8
+        - nextflow ^openjdk@11.0.17_8
+        - !cat &hdf5 
+          - hdf5@1.14.1-2 +cxx +fortran +hl 
+        - !cat &netcdf-c
+          - netcdf-c@4.9.2
+          - !spec {depends: *hdf5}
+        - !cat
+          - netcdf-cxx4@4.3.1
+          - !spec {depends: *netcdf-c}
+  # fork intel
+  - &intel-all
+   - !compiled
+     compiler: &intel oneapi@2023.1.0
+     specs: *gcc-specs
+  # depends on gcc, openmpi, mkl
+  - - !builder
+      suffix: !spec {depends: *ompi}
+      specs:
+      - &mkl !cat 
+        - &mkl-base intel-oneapi-mkl@2023.1.0
+        - &mkl-variants +cluster +envmods ~ilp64 +shared threads=tbb
+      - !cat
+        - &gmx-base gromacs@2023.1
+        - &gmx-variants +blas build_system=cmake build_type=Release
+          ~cp2k ~cuda ~cycle_subcounters
+          ~double generator=make +hwloc ~ipo
+          +lapack ~mdrun_only +mpi ~nosuffix ~opencl +openmp 
+          openmp_max_threads=none +shared ~sycl
+      tail: *mkl
+  # depends on gcc, openmpi
+  - - !loop_depends
+      base: *ompi
+      specs:
+      - osu-micro-benchmarks@7.1-1
+  # depends on openmpi-intra and gcc with MKL
+  - - !builder
+      suffix: !spec {depends: *ompi-intra}
+      specs:
+      - &mkl-ompi-intra !cat
+        - *mkl-base
+        - !spec {compiler: *gcc}
+        - *mkl-variants 
+      - !cat
+        - *gmx-base
+        - !spec {compiler: *gcc}
+        - *gmx-variants
+      - !cat
+        - hypre@2.20.0 +openmp
+      tail: *mkl
+  # depends on openmpi-intra and gcc
+  - - !loop_depends
+      base: *ompi-intra
+      specs:
+      - !cat
+        - fftw@3.3.10 +openmp
+      - !cat
+        - sundials@2.7.0
