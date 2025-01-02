@@ -2,8 +2,11 @@
 #   which should match the osp shortname in "osp target"
 spack:
   config:
+    # pack the install root with the superspec
     install_tree:
       root: /share/Apps/cascade24v2
+    # omit architecture because we segment by architecture anyway
+    install_path_scheme: '{compiler.name}-{compiler.version}/{name}-{version}-{hash}'
   modules:
     default:
       roots:

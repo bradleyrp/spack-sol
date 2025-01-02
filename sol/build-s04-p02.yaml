@@ -6,12 +6,19 @@ spack:
   #   we have collisions
   view: false
   concretizer: 
-    # note that things were unified without asking when we ask for two very
-    #   similar openmpi packages, but we could probably switch to when_possible
-    unify: true
-    reuse: true
-    duplicates:
-      strategy: none
+    # beware the concretizer settings have implications for reproducibility
+    #   and setting them to avoid duplication may cause hashes to change
+    #   for no reason, for example, when the install_root changes. the 
+    #   use of these settings might be a red herring. trust the process
+    # # for the middleware we use the most aggressive settings while
+    # #   we dial in the packages. then we relax unify to get two copies
+    # #   of the osu-micro-benchmarks
+    # unify: false
+    # reuse: true
+    # duplicates:
+    #   strategy: none
+    unify: when_possible
+    reuse: false
   modules:
     # configurations for a module set
     default:
@@ -37,12 +44,11 @@ spack:
           all: '{name}/{version}'
           'openmpi fabrics=none': '{name}-intra/{version}'
         hash_length: 0
-  # pack the install root with the superspec
   config:
+    # pack the install root with the superspec
     install_tree:
       root: /share/Apps/build/cascade24v2/marianatrenchbuildsite
     build_stage:
-    - $LOCAL_SCRATCH
     - $TMPDIR
   # EXTERNAL packages
   packages:
@@ -51,6 +57,31 @@ spack:
       externals:
       - spec: slurm@23.02.8 
         prefix: /usr/local/slurm
+    hcoll:
+      buildable: false
+      externals:
+      - spec: hcoll@4.8.3230
+        prefix: /opt/mellanox/hcoll
+    gcc:
+      buildable: false
+      externals:
+        - prefix: /share/Apps/cascade24v2/gcc-11.5.0/gcc-12.4.0-e6sishzchqw5qmiih2mhsgwfs4adeuou
+          spec: gcc@12.4.0%gcc@11.5.0~binutils+bootstrap~graphite~mold~nvptx~piclibs~profiled~strip build_system=autotools build_type=RelWithDebInfo languages='c,c++,fortran' arch=linux-almalinux9-cascadelake
+          extra_attributes:
+            compilers:
+              c: /share/Apps/cascade24v2/gcc-11.5.0/gcc-12.4.0-e6sishzchqw5qmiih2mhsgwfs4adeuou/bin/gcc
+              cxx: /share/Apps/cascade24v2/gcc-11.5.0/gcc-12.4.0-e6sishzchqw5qmiih2mhsgwfs4adeuou/bin/g++
+              fortran: /share/Apps/cascade24v2/gcc-11.5.0/gcc-12.4.0-e6sishzchqw5qmiih2mhsgwfs4adeuou/bin/gfortran
+    intel-oneapi-compilers:
+      buildable: false
+      externals:
+        - prefix: /share/Apps/cascade24v2/gcc-11.5.0/intel-oneapi-compilers-2025.0.0-mnocepxqezubqvtdpnc7z4axd37ahtsv
+          spec: intel-oneapi-compilers@2025.0.0%gcc@11.5.0~amd+envmods~nvidia build_system=generic arch=linux-almalinux9-cascadelake
+          extra_attributes:
+            compilers:
+              c: /share/Apps/cascade24v2/gcc-11.5.0/intel-oneapi-compilers-2025.0.0-mnocepxqezubqvtdpnc7z4axd37ahtsv/compiler/2025.0/bin/icx
+              cxx: /share/Apps/cascade24v2/gcc-11.5.0/intel-oneapi-compilers-2025.0.0-mnocepxqezubqvtdpnc7z4axd37ahtsv/compiler/2025.0/bin/icpx
+              fortran: /share/Apps/cascade24v2/gcc-11.5.0/intel-oneapi-compilers-2025.0.0-mnocepxqezubqvtdpnc7z4axd37ahtsv/compiler/2025.0/bin/ifx
   # specs in a superspec format, using list of lists
   # GCC + MPI
   specs: !flatten
@@ -59,7 +90,8 @@ spack:
         - !spec {compiler: *gcc_back}
         - &arch arch=linux-almalinux9-cascadelake
     - !compiled
-      compiler: *gcc
+      compiler: *gcc 
+      arch: *arch
       specs: 
       - !cat
         - lmod@8.7.37 auto_swap=true build_system=autotools  
@@ -67,16 +99,13 @@ spack:
     - !compiled
       compiler: !cat [*gcc, *arch]
       specs:
-      - &cuda cuda@12.4.0 +allow-unsupported-compilers
-      - &cmake cmake@3.30.5 ~qtgui ^curl +libidn2
-      #! - ucx@1.17.0 ^rdma-core ~man_pages
+      - &cuda cuda@12.6.2 +allow-unsupported-compilers
+      # deprecated but reserved for later
+      # - &cmake cmake@3.30.5 ~qtgui ^curl +libidn2
       - &ucx !cat
-        # we opt-in to cma, cuda, dc, dm, ib_hw_tm, rc
-        #   thread_multiple, ud
-        # - ucx@1.17.0 ~optimizations ~cma ~dc ~dm ~knem +rdmacm ~rocm +verbs +xpmem
-        # opt-in to cma, dc, dm, ib_hw_tm, mlx5_dv, rc, ud, verbs
-        # withhold pending knem and xpmem kernel modules
-        - ucx@1.17.0
+        # opt-in to cma, dc, dm, ib_hw_tm, mlx5_dv, rc, thread_multiple, ud, verbs
+        # opt-in to knem, xpmem after ensuring kernel modules are installed (via hpcx)
+        - ucx@1.18.0
           ~assertions
           ~backtrace_detail
           +cma
@@ -85,11 +114,11 @@ spack:
           ~debug
           +dm
           +examples
-          ~gdrcopy
+          +gdrcopy
           ~gtest
           +ib_hw_tm
           ~java
-          ~knem
+          +knem
           ~logging
           +mlx5_dv
           +openmp
@@ -99,55 +128,76 @@ spack:
           +rc
           +rdmacm
           ~rocm
-          ~thread_multiple
+          +thread_multiple
           ~ucg
           +ud
           +verbs
           ~vfs
-          ~xpmem 
+          +xpmem 
           build_system=autotools
           libs=shared,static
           opt=3 
           simd=auto 
           cuda_arch=75,80,86,89
-          #! ~assertions ~backtrace_detail 
-          #! +cma ~cuda +dc ~debug +dm 
-          #! +examples ~gdrcopy ~gtest +ib_hw_tm 
-          #! ~java ~knem ~logging ~mlx5_dv 
-          #! +openmp opt=3 +optimizations 
-          #! ~parameter_checking +pic 
-          #! +rc +rdmacm ~rocm simd=auto
-          #! +thread_multiple 
-          #! ~ucg +ud +verbs ~vfs ~xpmem
-          #! cuda_arch=75,80,86,89
-          # PENDING: ask for the knem module and recompile!
         - !spec {depends: *cuda}
-        #! - !spec {depends: hwloc +cuda}
-        # this is creating too many dependencies
+        # note that we discarded hwloc +cuda from previous versions
+        # restrain man_pages because it requires cmake +qtgui 
         - !spec {depends: rdma-core ~man_pages}
+        - !spec
+          depends: &xpmem xpmem@20241230 ~kernel-module
+        - !spec
+          depends: &knem knem@20241230
+    # hwloc and libevent
+    - !compiled
+      compiler: *gcc
+      specs: 
+      - !cat
+        - &hwloc 
+          hwloc@2.11.1 
+          +cuda +pci +libxml2
+          cuda_arch=75,80,86,89
+        - !spec {depends: *cuda}
+      - &libevent libevent@2.1.12
     # mpi: openmpi 5
     - - &ompi5 !cat
         - !cat
           - &ompi-base openmpi@5.0.5
           - !spec {compiler: *gcc}
+          #! PENDING fabrics. previously: fabrics=cma,hcoll,knem,ucx,xpmem
+          #!   note that we are waiting on hcoll possibly needs to be installed everywhere? and knem and xpmem
+          #!   note also that ucx covers a lot of the transport layers, perhaps all of them
           - &ompi-variants 
-            +atomics +cuda ~debug ~gpfs 
-            ~internal-hwloc ~internal-libevent ~internal-pmix 
-            ~java ~lustre ~memchecker
-            ~openshmem ~romio +rsh ~static ~two_level_namespace
-            +vt+wrapper-rpath 
-            build_system=autotools 
-            fabrics=cma,ucx
+            +atomics 
+            +cuda 
+            ~debug 
+            ~gpfs
+            ~internal-hwloc 
+            ~internal-libevent 
+            ~internal-pmix
+            ~java 
+            ~lustre 
+            ~memchecker
+            +openshmem 
+            +romio 
+            +rsh 
+            ~static 
+            ~two_level_namespace
+            +vt 
+            +wrapper-rpath
+            build_system=autotools
+            fabrics=cma,ucx,knem,xpmem,hcoll
             schedulers=slurm
             cuda_arch=75,80,86,89
           - *arch
-        # spack does not consider external slurm spec, and pmix for slurm 21 must be 3,
-        #   see https://slurm.schedmd.com/mpi_guide.html#open_mpi
-        #! - !spec {depends: *ucx}
-        #! - !spec {depends: *cuda}
+        - !spec {depends: *ucx}
+        - !spec {depends: *hwloc}
+        - !spec {depends: *libevent}
+        - !spec {depends: *cuda}
+        - !spec {depends: *xpmem}
+        - !spec {depends: *knem}
     # include microbenchmarks with the MPI build-s03-p02.yaml stage for quick testing
     - - !cat
-        - osu-micro-benchmarks
+        - osu-micro-benchmarks@7.4
         - !spec {depends: *ompi5}
   # INTEL + MPI
   # note that I installed the compilers at one version and oneapi is detected at another
@@ -159,12 +209,19 @@ spack:
         - !cat
           - &intel-mpi-base intel-oneapi-mpi@2021.12.1
           - !spec 
-            compiler: &intel oneapi@2025
+            compiler: &intel oneapi@2025.0.0
           - &intel-mpi-variants 
             +envmods ~external-libfabric ~generic-names ~ilp64 
             build_system=generic 
           - *arch
+    # Intel CUDA 
+    - !compiled
+      compiler: !cat [*intel, *arch]
+      specs:
+      - &cuda cuda@12.6.2
     # include microbenchmarks with the MPI build-s03-p02.yaml stage for quick testing
     - - !cat
-        - osu-micro-benchmarks
+        - osu-micro-benchmarks@7.4
+        # no idea why we have to specify intel here but it seems to try gcc otherwise
+        - !spec {compiler: *intel}
         - !spec {depends: *intel-mpi}
