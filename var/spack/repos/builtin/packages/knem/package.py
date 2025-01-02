@@ -18,6 +18,13 @@ class Knem(AutotoolsPackage):
     maintainers("skosukhin")
 
     version("master", branch="master")
+
+    # rpb222 pins this
+    version("20241230", commit="4b4ebc6bfacbb28552cff17a2408f0390fa280af")
+    depends_on("autoconf", type="build", when="@20241230 build_system=autotools")
+    depends_on("automake", type="build", when="@20241230 build_system=autotools")
+    depends_on("libtool", type="build", when="@20241230 build_system=autotools")
+
     version(
         "1.1.4",
         sha256="9f0e360579ae7655e07d6644583fd325515e9ff2b42ef5decb5421a003510937",

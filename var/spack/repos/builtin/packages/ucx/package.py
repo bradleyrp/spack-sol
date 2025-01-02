@@ -19,6 +19,10 @@ class Ucx(AutotoolsPackage, CudaPackage):
 
     license("BSD-3-Clause")
 
+    # rpb222 gets a newer version for compatibility reasons
+    version("1.18.0", sha256="c5ddbf6ade53415cc2402fa540281c92958b67d3b1dd2b4d721d4019616b88d2")
+    url = "https://github.com/openucx/ucx/releases/download/v1.18.0-rc3/ucx-1.18.0.tar.gz"
+
     # Current
     version("1.17.0", sha256="34658e282f99f89ce7a991c542e9727552734ac6ad408c52f22b4c2653b04276")
 

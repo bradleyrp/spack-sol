@@ -24,6 +24,9 @@ class Xpmem(AutotoolsPackage):
 
     version("master", branch="master")
 
+    # rpb222 pins this with a custom number
+    version("20241230", commit="0c56201e37f78c667a9883babd986f2a768de6d7")
+
     # Versions starting 2.6.4 are neither tagged nor released in the repo
     # (the choice of commits is based on the commit history of
     # 'kernel/xpmem_private.h'):
