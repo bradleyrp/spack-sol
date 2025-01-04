@@ -39,7 +39,6 @@ spack:
       root: /share/Apps/build/cascade24v2/marianatrenchbuildsite
     # staging
     build_stage:
-    - $LOCAL_SCRATCH
     - $TMPDIR
   # specs in a superspec format, using list of lists
   specs: 

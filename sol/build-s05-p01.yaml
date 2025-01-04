@@ -33,9 +33,11 @@ spack:
       externals:
       - spec: slurm@23.02.8
         prefix: /usr/local/slurm
-  # staging
+  # pack the install root with the superspec
   config:
-    # a difference from build-s04 series is lack of $LOCAL_SCRATCH
+    install_tree:
+      root: /share/Apps/build/ice24v2/marianatrenchbuildsite
+    # staging
     build_stage:
     - $TMPDIR
   # specs in a superspec format, using list of lists
@@ -45,6 +47,6 @@ spack:
       - &arch arch=linux-almalinux9-icelake
       - !spec {compiler: *gcc_back}
   - - !cat
-      - &intel intel-oneapi-compilers@2024.1.0
+      - &intel intel-oneapi-compilers@2025.0.0
       - *arch 
       - !spec {compiler: *gcc_back}

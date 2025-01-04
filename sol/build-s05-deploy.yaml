@@ -2,12 +2,15 @@
 #   which should match the osp shortname in "osp target"
 spack:
   config:
+    # pack the install root with the superspec
     install_tree:
-      root: /share/Apps/cascade24v2
+      root: /share/Apps/ice24v2
+    # omit architecture because we segment by architecture anyway
+    install_path_scheme: '{compiler.name}-{compiler.version}/{name}-{version}-{hash}'
   modules:
     default:
       roots:
-        lmod: /share/Apps/cascade24v2/lmod
+        lmod: /share/Apps/ice24v2/lmod
       arch_folder: false
       # dev: this is overwritten when we build modules so we have to include it here
       lmod:
@@ -30,4 +33,4 @@ spack:
           'openmpi fabrics=none': '{name}-intra/{version}'
         hash_length: 0
   mirrors:
-    cascade24v2-build: file:///share/Apps/build/cascade24v2/mirror-spack
+    cascade24v2-build: file:///share/Apps/build/ice24v2/mirror-spack
