@@ -7,16 +7,8 @@ spack:
   view: false
   concretizer: 
     # do not use reuse or this breaks reproducibility
-    # we are stuck with when_possible due to a concretizer error
-    #   namely "something depends_on a non-node" however we are
-    #   extremely wary of this solution because small changes
-    #   in e.g. bzip2 for one compiler triggered massive recompiles.
-    #   note that I tried unify:false for a while after using a
-    #   hashpin for libxcb due to an open issue, but continued
-    #   to get this error and then relented to when_possible.
-    #   note that this behavior appears to be a major regression
-    #   sometime between v0.21 and v0.23 for this use-case
-    unify: when_possible
+    # we also find when_possible triggers major recompiles
+    unify: false
     reuse: false
   # CONFIG
   config:
@@ -99,6 +91,14 @@ spack:
         prefix: /share/Apps/cascade24v2/oneapi-2025.0.0/cuda-12.6.2-7653ixn465x3mzgtnod2evjins47qekd
       - spec: &cuda126-gcc cuda@12.6.2%gcc@12.4.0+allow-unsupported-compilers~dev build_system=generic arch=linux-almalinux9-cascadelake
         prefix: /share/Apps/cascade24v2/gcc-12.4.0/cuda-12.6.2-4bnnvhtdkeytxwmiohbirolvkkxh6qpi
+    # develop was giving errors and I could not pin this to silo
+    #   because it depends on libtool in two places so I restrict it here
+    libtool:
+      require: '@2.4.7'
+    # we notice that zlib-ng is foundational and attempt to control it here
+    all:  
+      providers:
+        zlib-api: [zlib-ng@2.2.1 +compat]
   # MODULES
   modules:
     # configurations for a module set
@@ -148,6 +148,8 @@ spack:
         projections:
           # gromacs has a cuFFTMp variant
           gromacs +cufftmp: 'gromacs/{version}-cufftmp'
+          # gromaacs has a plumed variant
+          gromacs +plumed: 'gromacs/{version}-plumed'
           # other modifications. if dependeng on mpi, we do not include this here yet
           boost +container: '{name}/{version}-plus'
           # standard python tree
@@ -163,6 +165,9 @@ spack:
           # NAMD has a GPU version
           namd +cuda: 'namd-gpu/{version}'
           all: '{name}/{version}'
+          # MKL has TBB versions
+          intel-oneapi-mkl threads=tbb: 'intel-oneapi-mkl/{version}-tbb'
+          intel-oneapi-mkl threads=openmp: 'intel-oneapi-mkl/{version}'
         # patching in pmix for openmpi for some reason
         openmpi:
           environment:
@@ -207,13 +212,15 @@ spack:
       - &bzip bzip2@1.0.8 ~debug~pic+shared build_system=generic
       - &git git@2.47.0
       - &tbb intel-oneapi-tbb@2022.0.0
-      # note that we use a hashpin below
+      - &cmake cmake@3.30.5 ~doc +ncurses +ownlibs ~qtgui
+      # note that this produces a "hashpin" we use below
       - libxcb@1.17.0
       - !cat &openblas
         - openblas@0.3.28 
         - ~bignuma ~consistent_fpcsr +fortran ~ilp64 +locking +pic +shared
-      #! # anaconda is critical
-      #! - anaconda3@2023.09-0 
+      # anaconda is critical but installation was taking over an hour!
+      #   so we discard it: anaconda3@2023.09-0 
+      - miniconda3@24.7.1
   # gcc openmpi
   - - !builder
       suffix: !spec {compiler: *gcc}
@@ -231,6 +238,7 @@ spack:
       - *bzip 
       - *git
       - &tbb-intel intel-oneapi-tbb@2022.0.0
+      - &cmake-intel cmake@3.30.5 ~doc +ncurses +ownlibs ~qtgui
   # intel intel-mpi
   - - !builder
       suffix: !spec 
@@ -260,10 +268,11 @@ spack:
       - !spec {depends: fontconfig, compiler: *gcc}
       - !spec {depends: freetype, compiler: *gcc}
       - !spec {depends: libpng, compiler: *gcc}
-      # dev: PAUSE here to get the libxcb hash (call it hashpin)
+      # PAUSE here to get the libxcb hashpin
       #   see https://github.com/spack/spack/issues/44289
-      - !spec {depends: &libxcb-hashpin 'libxcb /rev5xta'}
+      - !spec {depends: &libxcb-hashpin 'libxcb@1.17.0 /rev5xta'}
       specs:
+      # note that this produces a hashpin for python below
       - !cat &python
         - &python-base python@3.13.0
         - &python-opts-all
@@ -310,47 +319,38 @@ spack:
         - netcdf-fortran@4.6.1 ~doc +pic +shared
         - !spec {depends: *netcdf-c}
       - &parallel-netcdf parallel-netcdf@1.12.3 ~burstbuffer +cxx +fortran +pic +shared
+      - &fftw !cat
+        - fftw@3.3.10
+        - +mpi +openmp +pfft_patches +shared
+          precision=float,double
+  # gcc python py-cython
+  - - - &py-cython-hashpin !cat
+        - py-cython@3.0.11
+        # PAUSE here for the hashpin
+        - !spec
+          depends: &python-hashpin python@3.13.0 /zk6ycvv
   # gcc python openmpi packages
-  - - !builder
-      suffix: *suffix
-      tail: !cat
-      - !spec {depends: *python}
-      - !spec {depends: *libxcb-hashpin}
-      - !spec {depends: *ompi5-pin}
-      specs: &python-support-mpi
-      # dev: non-python packages that require py-numpy must be marked in sol-custom/sol_custom/custom.py
-      - !cat &py-numpy
+  - - - !cat &py-numpy
         - &py-numpy-ver py-numpy@2.1.2
         - !spec {depends: *mkl-tbb}
-        # dev: hashpin, see below: - !spec {depends: *py-cython}
-        - !spec {depends: *python}
+        - !spec {depends: *py-cython-hashpin}
       - !cat &py-scipy
         - &py-scipy-ver py-scipy@1.14.1
         - !spec {depends: *py-numpy}
-  # gcc python py-cython
-  # dev: this was getting recompiled a lot 
-  #   so we pulled out the one that supports py-numpy
-  #   and we use a hashpin for this
-  - - - &py-cython-hashpin py-cython /l5ydsvo
   # gcc python openmpi packages downstream
-  - - !builder
-      suffix: *suffix
-      tail: !cat
-      - !spec {depends: *python}
-      - !spec {depends: *libxcb-hashpin}
-      specs:
-      - !cat &py-matplotlib 
-        - py-matplotlib
+  - - - &py-matplotlib !cat
+        - py-matplotlib@3.9.2 
+        - ~animation ~fonts ~latex ~movies
         - !spec {depends: *py-numpy}
-        - !spec {depends: *ompi5-pin}
-        # dev: hashpin, see elsewhere: - !spec {depends: *py-scm}
-        - !spec {depends: *python}
-      #! dev: deprecated due to weird error 
-      #!   previously: py-mpi4py@4.0.1 ^py-cython/l5ydsvo %gcc@12.4.0 arch=linux-almalinux9-cascadelake ^python@3.13.0+bz2+ctypes+dbm~debug+libxml2+lzma~nis+optimizations+pic+pyexpat+pythoncmd+readline+shared+sqlite3+ssl+tkinter+uuid+zlib ^libxcb/rev5xta
-      #! - !cat &py-mpi4py 
-      #!   - py-mpi4py@4.0.1
-      #!   - !spec {depends: *py-cython-hashpin}
+      - &py-mpi4py !cat 
+        - py-mpi4py@4.0.1 
+        - !spec {depends: *py-cython-hashpin}
+        - !spec {depends: *ompi5}
   # support for r +X
+  #! - - - &py311-extra !cat
+  #!       # for some reason the lower python ~tkinter needs to be exposed as a module
+  #!       #   or else overspack complains, perhaps doe to some related pacakges?
+  #!       - python@3.11.9 %gcc@12.4.0 /kx776lz
   - - !compiled
       compiler: *gcc
       arch: *arch
@@ -429,14 +429,24 @@ spack:
         - !spec {depends: *texinfo}
         - !spec {depends: *tk}
         - !spec {depends: *which}
+        # cannot pin to python here because R requires cario
+        #   which seems to need a lower python@3.11
+  #! # support for r +X
+  #! - - !compiled
+  #!     compiler: *gcc
+  #!     arch: *arch
+  #!     specs:
+  #!     - &tcl tcl@8.6.12
+  #!     - *tk
+  #!   - !loop_depends
+  # central R
+  #! - - - &r !cat
+  #!       - r@4.4.1 +X ~memory_profiling ~rmath
+  #!       - !spec {compiler: *gcc, arch: *arch}
+  #!       - !spec {depends: *mkl-tbb}
+  #!       - !spec {depends: *python-hashpin}
   # support for r +X
-  - - !compiled
-      compiler: *gcc
-      arch: *arch
-      specs:
-      - &tcl tcl@8.6.12
-      - *tk
-    - !loop_depends
+  - - !loop_depends
       base: *r
       specs:
       - r-dplyr
@@ -545,9 +555,9 @@ spack:
           generator=make 
           openmp_max_threads=none
           cuda_arch=75,80,86,89
-        # dev: pinning to *mkl-tbb causes gromacs to desire openblas
-        #   which feels like a bug to me. 
-        - !spec {depends: *mkl-omp}
+        # note that gromacs recommends fftw for performance over
+        #   MKL and anyway you need this for cuda features
+        - !spec {depends: *fftw}
         - !spec {compiler: *gcc, arch: *arch}
         - !spec {depends: *ompi5}
         - !spec {depends: *cuda126-gcc}
@@ -611,71 +621,208 @@ spack:
         - !spec {depends: *py-wheel-intel}
         - !spec {depends: *py-pip-intel}
         - !spec {depends: *python-intel}
-  #! # intel python intel-mpi packages 
-  #! - - !builder
-  #!     suffix: !spec {compiler: *intel}
-  #!     tail: !cat 
-  #!     - *python-intel
-  #!     - !spec {depends: *impi}
-  #!     specs:
-  #!     # NOTE: are you using py-numpy in a non-python package? then say so over in
-  #!     #   sol-custom/sol_custom/custom.py
-  #!     - !cat &py-numpy-intel
-  #!       # note that py-numpy version 2 does not work with oneapi, see spack
-  #!       - py-numpy@1.26.4
-  #!       - !spec {depends: *py-cython-intel}
-  #!     # dev: repeated errors after significantly altering available python versions for intel
-  #!     #   error is "icx: error: clang frontend command failed with exit code 70 (use -v to see invocation)
-  #!     # - !cat &py-scipy-intel
-  #!     #   - py-scipy@1.13.1
-  #!     #   - !spec {depends: *py-numpy-intel}
-  #! #! # depends on gcc openmpi mkl cuda
-  #! #! - - !builder
-  #! #!     suffix: !spec {depends: *ompi5}
-  #! #!     tail: *mkl
-  #! #!     specs:
-  #! #!     - !cat
-  #! #!       - &lammps-base lammps@20230802 
-  #! #!       - &lammps-variant
-  #! #!         +asphere +body  build_system=cmake build_type=RelWithDebInfo
-  #! #!         +class2 +colloid +compress +coreshell
-  #! #!         +cuda cuda_arch=89 +cuda_mps 
-  #! #!         +dipole +exceptions ~ffmpeg +granular ~ipo ~jpeg 
-  #! #!         +kim ~kokkos 
-  #! #!         +kspace fftw_precision=double
-  #! #!         lammps_sizes=smallbig 
-  #! #!         +lib +manybody +mc +misc +molecule +mpi +mpiio +openmp
-  #! #!         +opt +peri +png +poems +python +qeq +replica +rigid ~rocm +shock +srd +voronoi
-  #! #!         +atc +h5md +meam +netcdf +phonon +qtb +reaxff
-  #! #!         +extra-pair
-  #! #!         +cg-dna
-  #! #!       - !spec {depends: *python}
-  #! #!       - !spec {depends: *py-mpi4py}
-  #! #!       - !spec {depends: *netcdf-c}
-  #! #!       # dev: errors on kokkos 
-  #! #!       #   basically cmake says it cannot get the architecture, even though the value is set properly
-  #! #!       #   - !spec {depends: kokkos +wrapper +cuda cuda_arch=89}
-  #! #!       - !spec {depends: *cuda126-gcc}
-  #! #!       - !spec {depends: *openblas}
-  #! #!     # lammps minus CUDA for rapids 
-  #! #!     - !cat
-  #! #!       - &lammps-base lammps@20230802 
-  #! #!       - &lammps-variant
-  #!         +asphere +body  build_system=cmake build_type=RelWithDebInfo
-  #!         +class2 +colloid +compress +coreshell
-  #!         +dipole +exceptions ~ffmpeg +granular ~ipo ~jpeg 
-  #!         +kim ~kokkos 
-  #!         +kspace fftw_precision=double
-  #!         lammps_sizes=smallbig 
-  #!         +lib +manybody +mc +misc +molecule +mpi +mpiio +openmp
-  #!         +opt +peri +png +poems +python +qeq +replica +rigid ~rocm +shock +srd +voronoi
-  #!         +atc +h5md +meam +netcdf +phonon +qtb +reaxff
-  #!         +extra-pair
-  #!         +cg-dna
-  #!       - !spec {depends: *python}
-  #!       - !spec {depends: *py-mpi4py}
-  #!       - !spec {depends: *netcdf-c}
-  #!       # dev: errors on kokkos 
-  #!       #   basically cmake says it cannot get the architecture, even though the value is set properly
-  #!       #   - !spec {depends: kokkos +wrapper +cuda cuda_arch=89}
-  #!       - !spec {depends: *openblas}
+  # intel python intel-mpi packages 
+  - - !builder
+      suffix: !spec {compiler: *intel}
+      tail: !cat 
+      - *python-intel
+      - !spec {depends: *impi}
+      specs:
+      # NOTE: are you using py-numpy in a non-python package? then say so over in
+      #   sol-custom/sol_custom/custom.py
+      - !cat &py-numpy-intel
+        # note that py-numpy version 2 does not work with oneapi, see spack
+        - py-numpy@1.26.4
+        - !spec {depends: *py-cython-intel}
+        - !spec {depends: *mkl-intel}
+      # dev: repeated errors after significantly altering available python versions for intel
+      #   error is "icx: error: clang frontend command failed with exit code 70 (use -v to see invocation)
+      # - !cat &py-scipy-intel
+      #   - py-scipy@1.13.1
+      #   - !spec {depends: *py-numpy-intel}
+  # gcc openmpi
+  - - - !cat
+        - &lammps-base lammps@20240829.1 
+        - &lammps-variant
+          build_system=cmake
+          build_type=Release 
+          fft=fftw3 
+          fftw_precision=double 
+          generator=make
+          lammps_sizes=smallbig
+          ~adios ~amoeba +asphere +atc ~awpmd ~bocs +body ~bpm ~brownian +cg-dna
+          ~cg-spica +class2 +colloid ~colvars +compress +coreshell ~cuda ~cuda_mps +curl
+          ~dielectric ~diffraction +dipole ~dpd-basic ~dpd-meso ~dpd-react ~dpd-smooth
+          ~drude ~eff ~electrode ~extra-compute ~extra-dump ~extra-fix
+          ~extra-molecule +extra-pair ~fep ~ffmpeg +granular +h5md ~heffte ~intel
+          ~interlayer ~ipo ~jpeg +kim ~kokkos +kspace ~latboltz ~lepton +lib ~machdyn
+          ~manifold +manybody +mc +meam ~mesont ~mgpt +misc ~ml-hdnnp ~ml-iap ~ml-pod
+          ~ml-rann ~ml-snap ~ml-uf3 ~mofff +molecule +molfile +mpi +netcdf
+          ~opencl +openmp ~openmp-package +opt ~orient +peri +phonon ~plugin
+          ~plumed +png +poems ~ptm +python +qeq +qtb +reaction +reaxff ~replica
+          ~rheo +rigid ~rocm ~shock ~smtbq ~sph ~spin ~srd ~tally ~tools ~uef ~voronoi
+          ~vtk ~yaff
+        # customizing support to make this simpler
+        - !spec {depends: *py-cython-hashpin}
+        - &lammps-support
+          ^openblas@0.3.28 ~bignuma ~consistent_fpcsr +fortran ~ilp64 +locking+pic+shared 
+          ^fftw@3.3.10 %gcc@12.4.0 +mpi +openmp +pfft_patches +shared 
+          ^openmpi@5.0.5%gcc@12.4.0 
+  # gcc openmpi mkl cuda
+  - - - !cat
+        - &gromacs24-base gromacs@2024.3
+        - !spec {compiler: *gcc, arch: *arch}
+        - &gromacs-2025-variants 
+          +cuda cuda_arch=75,80,86,89 
+          ~cp2k ~cycle_subcounters ~double +gmxapi +hwloc ~intel_provided_gcc ~ipo
+          ~mdrun_only +mpi +nblib ~nosuffix ~opencl +openmp
+          ~relaxed_double_precision +shared 
+          build_system=cmake 
+          build_type=Release
+          generator=make
+          openmp_max_threads=none
+        # note that gromacs recommends fftw for performance over
+        #   MKL and anyway you need this for cuda features
+        - !spec {depends: *fftw}
+        - !spec {compiler: *gcc, arch: *arch}
+        - !spec {depends: *ompi5}
+        - !spec {depends: *cuda126-gcc}
+      - !cat &plumed 
+        - plumed@2.9.2
+        - !spec {compiler: *gcc, arch: *arch}
+        - !spec 
+          depends: &py-cython-hashpin-direct py-cython@3.0.11 /7ar33iq
+      - !cat 
+        - gromacs@2024.2
+        - !spec {compiler: *gcc, arch: *arch}
+        - *gromacs-2025-variants 
+        - +plumed
+        - !spec {depends: *fftw}
+        - !spec {compiler: *gcc, arch: *arch}
+        - !spec {depends: *ompi5}
+        - !spec {depends: *cuda126-gcc}
+        - !spec {depends: *plumed}
+  # gcc openmpi middleware
+  #! - - - &python-for-boost !cat
+  #!       - python@3.12.5
+  #!         +bz2 +crypt +ctypes +dbm ~debug +libxml2 +lzma ~nis 
+  #!         ~optimizations +pic +pyexpat +pythoncmd +readline 
+  #!         +shared +sqlite3 +ssl ~tkinter +uuid +zlib
+  - - - !cat
+        - eigen@3.4.0
+  - - - !cat
+        - silo@4.11.1
+          +fortran +fpzip +hdf5 +hzip +mpi +pic ~python +shared ~silex
+        # silo +python uses autotools to detect the system python and would
+        #   need stronger integration with a python dependency to include
+        #   this feature otherwise you see this error:
+        #     pysilo.cpp:51:10: fatal error: Python.h: No such file or directory
+        #   note that it would definitely need package.py changes to include
+        #   this dependency correctly
+        - !spec {depends: hdf5@1.14.5 /yqcrqe4}
+        - !spec {depends: *ompi5}
+  - - - &boost !cat
+        - boost@1.86.0
+          +atomic +charconv +chrono ~clanglibcpp
+          ~cobalt +container +context +contract +coroutine +date_time
+          ~debug +exception +fiber +filesystem +graph +graph_parallel
+          +icu +iostreams +json +locale +log +math +mpi +multithreaded +nowide ~numpy
+          ~pic +program_options +python +random +regex +serialization +shared +signals
+          ~singlethreaded +stacktrace +system ~taggedlayout +test +thread +timer
+          ~type_erasure +url ~versionedlayout +wave 
+          build_system=generic cxxstd=11 visibility=hidden
+          # note that it took a while to identify that +numpy, which is deprecated anyway
+          #   was forcing additional python dependencies
+        - !spec {compiler: *gcc, arch: *arch}
+        - !spec {depends: *python-hashpin}
+      # building generic cast of characters
+      - &trilinos !cat
+        - trilinos@13.4.1
+        - ~adelus ~adios2 +amesos +amesos2 +anasazi +aztec ~basker +belos ~boost ~chaco
+          ~complex ~cuda ~cuda_constexpr ~cuda_rdc ~debug ~dtk +epetra +epetraext
+          ~epetraextbtf ~epetraextexperimental ~epetraextgraphreorderings
+          ~exodus +explicit_template_instantiation ~float +fortran ~gtest ~hdf5
+          ~hypre +ifpack +ifpack2 ~intrepid ~intrepid2 ~ipo ~isorropia +kokkos ~mesquite
+          ~minitensor +ml +mpi +muelu ~mumps ~nox ~openmp ~pamgen ~panzer ~phalanx ~piro
+          ~python ~rocm ~rocm_rdc ~rol ~rythmos +sacado ~scorec ~shards +shared ~shylu
+          ~stk ~stokhos ~stratimikos ~strumpack ~suite-sparse ~superlu ~superlu-dist
+          ~teko ~tempus ~test ~thyra +tpetra ~trilinoscouplings ~wrapper ~x11 ~zoltan
+          ~zoltan2 
+      - !cat &metis 
+        - metis@5.1.0
+        - ~gdb ~int64 ~ipo ~real64 +shared 
+      - !cat &parmetis 
+        - parmetis@4.0.3
+        - ~gdb ~int64 ~ipo +shared 
+        - !spec {depends: *metis}
+      - !cat &superlu-dist
+        - superlu-dist@9.1.0
+        # cannot use cuda or atomicAdd error
+        # ...!!! confirm this later
+        - +cuda ~int64 ~ipo ~openmp +parmetis ~rocm +shared
+          cuda_arch=75,80,86,89
+        - !spec {depends: *metis}
+        - !spec {depends: *parmetis}
+        - !spec {depends: *ompi5}
+      - &hypre !cat
+        - hypre@2.32.0
+        - ~caliper ~complex +cublas +cuda ~debug +fortran ~gptune +gpu-aware-mpi ~int64
+          ~internal-superlu ~magma ~mixedint +mpi +openmp ~rocblas
+          ~rocm +shared +superlu-dist ~sycl ~umpire ~unified-memory
+          cuda_arch=75,80,86,89
+        - !spec {depends: *cuda126-gcc}
+        - !spec {depends: *superlu-dist}
+      # petsc must be build on a node with libcuda.so, see
+      #   https://github.com/spack/spack/issues/47163
+      - !cat &petsc 
+        - petsc@3.22.1
+        - ~X ~batch ~cgns ~complex +cuda ~debug +double ~exodusii +fftw +fortran
+          ~giflib +hdf5 ~hpddm +hwloc +hypre ~int64 ~jpeg ~knl ~kokkos ~libpng ~libyaml
+          ~memkind +metis ~mkl-pardiso ~mmg ~moab ~mpfr +mpi ~mumps +openmp ~p4est
+          ~parmmg ~ptscotch ~random123 ~rocm ~saws ~scalapack +shared ~strumpack
+          ~suite-sparse +superlu-dist ~sycl ~tetgen ~trilinos ~valgrind ~zoltan 
+        # removed trilinos due to error: 
+        #   Unable to generate list of Trilinos Libraries
+        - !spec {depends: *ompi5}
+        # - !spec {depends: *trilinos}
+        - !spec {depends: *hdf5}
+        - !spec {depends: *hypre}
+        - !spec {depends: *fftw}
+        - !spec {depends: *metis}
+        - !spec {depends: *parmetis}
+        - !spec {depends: *superlu-dist}
+        - !spec {depends: *python-hashpin}
+  # wym219
+  - - - !cat
+        - trinity@2.15.1.FULL
+        - !spec {depends: *r}
+        #! - !spec {depends: boost@1.86.0 /iqv7q5i}
+        - !spec {depends: *mkl-tbb}
+        #! - !spec {depends: *python-hashpin}
+        #! - !spec {depends: r@4.4.1 /hn6u2px}
+        #! - '^[virtuals=zlib] star@2.7.11b'
+          #! depends: !cat
+          #! - r@4.4.1 +X ~memory_profiling ~rmath
+          #! - !spec {compiler: *gcc, arch: *arch}
+          #! - !spec {depends: *mkl-tbb}
+          #! - !spec {depends: python@3.13.0}
+          #! - !spec {depends: zlib-ng@2.2.1} 
+          #! - !spec {depends: star@2.7.11b /w3iwka4}
+        # we see that trinity rolls its own:
+        #   - boost because it needs python@3.12 not 3.13 like the main one
+        #   - it uses python@3.11 and numpy and cython on top of that
+        # note that we are struggling to reduce redundancy here
+        #! - !spec {depends: *r}
+        # - !spec {depends: r@4.4.1 /hfasbin}
+        #!- !spec {depends: zlib-ng@2.2.1 /y3gdxs3}
+        #! - !spec {depends: pango@1.54.0 /2roeuf2}
+        #! - !spec {depends: *boost}
+        #! - !spec {depends: boost /sqlbmqa}
+  # dar421
+  - - - !cat
+        - arrow@18.0.0
+        #!  ~brotli ~compute ~cuda ~gandiva ~glog ~hdfs +ipc ~ipo ~jemalloc +lz4 ~orc +parquet
+        #!  +python +shared +snappy ~tensorflow +zlib +zstd
+        #!  +csv
+        - !spec {depends: *boost}
+        - !spec {depends: *py-numpy}
