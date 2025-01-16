@@ -101,7 +101,9 @@ class Trinity(MakefilePackage):
 
     def build(self, spec, prefix):
         make()
-        make("trinity_essentials")
+        # rpb222 removes after deseq2 error, and consulting an issue
+        #   https://github.com/spack/spack/issues/39334
+        # make("trinity_essentials")
         make("plugins")
 
     def install(self, spec, prefix):

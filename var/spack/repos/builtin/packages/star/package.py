@@ -40,11 +40,13 @@ class Star(MakefilePackage):
     depends_on("c", type="build")  # generated
     depends_on("cxx", type="build")  # generated
 
-    depends_on("zlib-api")
+    # rpb222 removes the conflict, and replaces zlib-api with zlib
+    # depends_on("zlib-api")
     # required for certain steps in the makefile
     depends_on("xxd", type="build")
 
-    conflicts("zlib-ng")  # https://github.com/alexdobin/STAR/issues/2063
+    # conflicts("zlib-ng")  # https://github.com/alexdobin/STAR/issues/2063
+    depends_on("zlib")
 
     build_directory = "source"
 
