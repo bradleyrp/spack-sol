@@ -129,17 +129,6 @@ spack:
           gromacs +cufftmp: 'gromacs/{version}-cufftmp'
           # other modifications. if dependeng on mpi, we do not include this here yet
           boost +container: '{name}/{version}-plus'
-          # python +tkinter requires an entirely separate tree
-          # follow the suffix and register with 
-          #   osp alias --suffix 'pytk' --func 'lambda p:(p.variants["tkinter"].value==True and p.name=="python")' 
-          python +tkinter: '{name}/{version}-pytk'
-          build_system=python_pip ^python +tkinter ^mpi: &py-mpi-pro-pytk 'py-{^python.version}-{compiler.name}-{compiler.version}-{^mpi.name}-{^mpi.version}__pytk/{name}/{version}'
-          build_system=python_pip ^python +tkinter: &py-pro-pytk 'py-{^python.version}-{compiler.name}-{compiler.version}__pytk/{name}/{version}' 
-          # some python packages have build_system=generic so we have to single them out here, and below
-          py-pip ^python +tkinter: *py-pro-pytk
-          py-setuptools ^python +tkinter: *py-pro-pytk 
-          py-wheel ^python +tkinter: *py-pro-pytk
-          py-pybind11 ^python +tkinter: *py-pro-pytk
           # standard python tree
           build_system=python_pip ^python ^mpi: &py-mpi-pro 'py-{^python.version}-{compiler.name}-{compiler.version}-{^mpi.name}-{^mpi.version}/{name}/{version}'
           build_system=python_pip ^python: &py-pro 'py-{^python.version}-{compiler.name}-{compiler.version}/{name}/{version}' 
@@ -153,11 +142,14 @@ spack:
           # NAMD has a GPU version
           namd +cuda: 'namd-gpu/{version}'
           all: '{name}/{version}'
+          # MKL has TBB versions
+          intel-oneapi-mkl threads=tbb: 'intel-oneapi-mkl/{version}-tbb'
+          intel-oneapi-mkl threads=openmp: 'intel-oneapi-mkl/{version}'
         # patching in pmix for openmpi for some reason
         openmpi:
           environment:
             prepend_path:
-              LD_LIBRARY_PATH: /share/Apps/ice24v2/gcc-12.4.0/pmix-5.0.3-y55kn4qtqvwrbl4risoa7j3ns3xhrtmf/lib 
+              LD_LIBRARY_PATH: /share/Apps/ice24v2/gcc-12.4.0/pmix-5.0.3-vznkg3ub32tnrhxslsth5imfgbqo63yq/lib 
         # other module extensions are in spack/etc/templates/lmod.lua
         #   for example the defintions of LOCAL_SCRATCH and CEPHFS_SCRATCH
         all:
@@ -188,17 +180,23 @@ spack:
   - - - *cuda126-intel         
   # intel mpi
   - - - *impi21-pin
-  # SOFTWARE
   # gcc
   - - !compiled
       compiler: &gcc-prev gcc@12.4.0
       arch: &arch arch=linux-almalinux9-icelake
       specs:
-      - zlib@1.3.1 +optimize+pic+shared build_system=makefile
-      - bzip2@1.0.8 ~debug~pic+shared build_system=generic
+      - &zlib zlib@1.3.1 +optimize+pic+shared build_system=makefile
+      - &bzip bzip2@1.0.8 ~debug~pic+shared build_system=generic
       - &git git@2.47.0
       - &tbb intel-oneapi-tbb@2022.0.0
-  # gcc, openmpi
+      # note that we use a hashpin below
+      - libxcb@1.17.0
+      - !cat &openblas
+        - openblas@0.3.28 
+        - ~bignuma ~consistent_fpcsr +fortran ~ilp64 +locking +pic +shared
+      #! # anaconda is critical
+      #! - anaconda3@2023.09-0 
+  # gcc openmpi
   - - !builder
       suffix: !spec {compiler: *gcc}
       tail: &ompi5 !cat
@@ -211,8 +209,11 @@ spack:
       compiler: &intel oneapi@2025.0.0
       arch: *arch
       specs:
+      - *zlib
+      - *bzip 
+      - *git
       - &tbb-intel intel-oneapi-tbb@2022.0.0
-  # intel, intel mpi
+  # intel intel-mpi
   - - !builder
       suffix: !spec 
         compiler: *intel
@@ -230,271 +231,433 @@ spack:
       - !cat &tk 
         - tk@8.6.11
         - !spec {depends: *tcl}
-  # gcc python
-  - - !compiled
-      compiler: *gcc
-      arch: *arch
-      specs:
-      - !cat &python
-        - &python-base python@3.13.0
-        - &python-opts-all
-          +bz2
-          +ctypes
-          +dbm
-          ~debug
-          +libxml2
-          +lzma
-          ~nis
-          +optimizations
-          +pic
-          +pyexpat
-          +pythoncmd
-          +readline
-          +shared
-          +sqlite3
-          +ssl
-          +tkinter
-          +uuid
-          +zlib
-        - !spec {depends: *tk}
-  # gcc python support
-  - - !loop_depends
-      base: !cat
-      - *python
-      - !spec 
-        compiler: *gcc
-        arch: *arch
-      # note that the wheel, pip, setuptools, supporting cython are ad hoc here,
-      #   but for intel below we make them more explicit
-      specs: &python-support
-      - py-setuptools@69.2.0
-      - py-wheel@0.41.2
-      - py-pip@23.1.2
-      - py-packaging@24.1
-      - &py-scm py-setuptools-scm@8.0.4
-      - &py-cython py-cython@3.0.11
-  # depends on gcc, openmpi
-  - - !builder
-      suffix: !spec {compiler: *gcc}
-      tail: *ompi5-pin
-      specs:
-      - !cat &hdf5 
-        - hdf5@1.14.5 +cxx +fortran +hl +mpi +szip
-      - !cat &netcdf-c
-        - netcdf-c@4.9.2
-        - !spec {depends: *hdf5}
-      - !cat
-        - &netcdf-cxx netcdf-cxx4@4.3.1
-        - !spec {depends: *netcdf-c}
-      - &mkl !cat 
-        - &mkl-base intel-oneapi-mkl@2024.2.2
-        - &mkl-variants +cluster +envmods ~ilp64 +shared threads=tbb mpi_family=openmpi
-        - !spec {depends: *tbb}
-      - &netcdf-fortran !cat
-        - netcdf-fortran@4.6.1 ~doc +pic +shared
-        - !spec {depends: *netcdf-c}
-      - &parallel-netcdf parallel-netcdf@1.12.3 ~burstbuffer +cxx +fortran +pic +shared
-  # depends on gcc, openmpi
-  - - !loop_depends
-      base: *ompi5-pin
-      specs: &python-support-mpi
-      # NOTE: are you using py-numpy in a non-python package? then say so over in
-      #   sol-custom/sol_custom/custom.py
-      - !cat &py-numpy
-        - &py-numpy-ver py-numpy@2.1.2
-        - !spec {depends: *mkl}
-        - !spec {depends: *py-cython}
-        - !spec {depends: *python}
-      - !cat &py-scipy
-        - &py-scipy-ver py-scipy@1.14.1
-        - !spec {depends: *py-numpy}
-  - - !loop_depends
-      base: !cat
-      - *python
-      - !spec 
-        compiler: *gcc
-        arch: *arch
-      specs:
-      # pinning against this hash later via py-matplotlib /tbuqzgi
-      - !cat &py-matplotlib 
-        - py-matplotlib
-        - !spec {depends: *py-numpy}
-        - !spec {depends: *ompi5-pin}
-        - !spec {depends: *py-scm}
-  # depends on intel, intel-mpi
-  - - !builder
-      suffix: !spec {compiler: *intel}
-      tail: *impi21-pin
-      specs:
-      - !cat &hdf5-intel 
-        - hdf5@1.14.5 +cxx +fortran +hl +mpi +szip
-      - !cat &netcdf-c-intel
-        - netcdf-c@4.9.2
-        - !spec {depends: *hdf5-intel}
-      - !cat
-        - &netcdf-cxx netcdf-cxx4@4.3.1
-        - !spec {depends: *netcdf-c-intel}
-      - &mkl-intel !cat 
-        - &mkl-base-intel intel-oneapi-mkl@2024.2.2
-        - &mkl-variants-intel +cluster +envmods ~ilp64 +shared threads=tbb mpi_family=mpich
-        - !spec {depends: *tbb-intel}
-      - &netcdf-fortran-intel !cat
-        - netcdf-fortran@4.6.1 ~doc +pic +shared
-        - !spec {depends: *netcdf-c-intel}
-      - &parallel-netcdf-intel parallel-netcdf@1.12.3 ~burstbuffer +cxx +fortran +pic +shared
-  # intel python
-  - - !compiled
-      compiler: *intel
-      arch: *arch
-      specs:
-      - *python
-  - - !loop_depends
-      base: !cat
-      - *python
-      - !spec 
-        compiler: *intel
-      specs: *python-support
-  - - !loop_depends
-      base: *impi
-      specs: 
-      # NOTE: are you using py-numpy in a non-python package? then say so over in
-      #   sol-custom/sol_custom/custom.py
-      - !cat &py-numpy-intel
-        - *py-numpy-ver
-        - !spec {depends: *py-cython}
-        - !spec 
-          depends: !cat
-          - *python-base
-          - *python-opts-all
-      - !cat &py-scipy-intel
-        - *py-scipy-ver 
-        - !spec {depends: *py-numpy-intel}
-  # support for r +X
-  - - !compiled
-      compiler: *gcc
-      arch: *arch
-      specs:
-      - &tcl tcl@8.6.12
-      - &tk tk@8.6.11
-      - &openjdk openjdk@17.0.11_9
-      # R dependencies added by +X
-      - !cat &cairo 
-        - cairo@1.16.0 
-        - +X +fc +ft +gobject +pdf +pic ~png +shared ~svg
-        - !spec 
-          depends: 
-            python@3.11.9
-            +bz2 +crypt +ctypes +dbm ~debug +libxml2 +lzma ~nis
-            ~optimizations +pic +pyexpat +pythoncmd +readline +shared +sqlite3 +ssl
-            ~tkinter +uuid +zlib 
-      - &harfbuzz harfbuzz@10.0.1
-        +graphite2  ~strip
-      - &icu4c icu4c@74.2
-      - &libjpeg libjpeg-turbo@3.0.3
-        ~ipo ~jpeg8 ~partial_decoder +pic
-      - &libtiff libtiff@4.7.0
-        +ccitt ~ipo ~jbig +jpeg ~jpeg12 ~lerc ~libdeflate +logluv ~lzma +lzw +next
-        ~old-jpeg ~opengl +packbits ~pic ~pixarlog +shared +thunder ~webp +zlib
-        ~zstd
-      - &libtirpc libtirpc@1.3.3
-      - &libx11 libx11@1.8.10
-      - &libxmu libxmu@1.2.1
-      - &libxt libxt@1.3.0
-      - &pango pango@1.54.0
-        +X ~strip
-      - &texinfo texinfo@7.1
-      - &tk tk@8.6.11
-        +xft
-        +xss
-      - &which which@2.21
-  # gcc R
-  - - !compiled
-      compiler: *gcc
-      arch: *arch
-      specs:
-      - !cat &r
-        - &r-ver r@4.4.1
-        # added this line afterwards for clarity
-        - +X ~memory_profiling ~rmath
-        - build_system=autotools
-        # constrain cmake to reuse tbb and mkl below
-        - !spec {depends: *ompi5}
-        - !spec {depends: *openjdk}
-        # something triggers a change to mkl
-        - !spec {depends: *mkl}
-        - !spec {depends: *tbb}
-        # pin to +X support above
-        - !spec {depends: *cairo}
-        - !spec {depends: *harfbuzz}
-        - !spec {depends: *icu4c}
-        - !spec {depends: *libjpeg}
-        - !spec {depends: *libtiff}
-        - !spec {depends: *libtirpc}
-        - !spec {depends: *libx11}
-        - !spec {depends: *libxmu}
-        - !spec {depends: *libxt}
-        - !spec {depends: *pango}
-        - !spec {depends: *texinfo}
-        - !spec {depends: *tk}
-        - !spec {depends: *which}
-  # support for r +X
-  - - !compiled
-      compiler: *gcc
-      arch: *arch
-      specs:
-      - &tcl tcl@8.6.12
-      - &tk tk@8.6.11
-    - !loop_depends
-      base: *r
-      specs:
-      - r-dplyr
-      - r-ggplot2
-      - r-bit
-      - r-bit64
-      - r-withr
-      - r-assertthat
-      - r-magrittr
-      - r-glue
-      - r-rlang
-      - r-r6
-      - r-tidyselect
-      - r-rcpp
-      - r-cli
-      - r-lifecycle
-      - r-vctrs
-      - r-purrr
-      - r-fs
-      - r-lobstr
-      - r-cpp11
-    # bioconductor
-    - !loop_depends
-      base: *r
-      specs:
-      # core items
-      - r-biocmanager
-      - r-biocinstaller
-      # requested
-      - r-biostrings
-      - r-genomicranges
-      # dependents
-      # note that we can hide implicits so these might not strictly be necessary
-      - r-biostrings
-      - r-biocgenerics
-      - r-genomeinfodb
-      - r-genomeinfodbdata
-      - r-rcurl
-      - r-bitops
-      - r-iranges
-      - r-s4vectors
-      - r-xvector
-      - r-zlibbioc
-      - r-genomicranges
-      - r-biocgenerics
-      - r-genomeinfodb
-      - r-genomeinfodbdata
-      - r-rcurl
-      - r-bitops
-      - r-iranges
-      - r-s4vectors
-      - r-xvector
-      - r-zlibbioc
+#!!!  # gcc python
+#!!!  - - !builder
+#!!!      suffix: &suffix !spec
+#!!!        compiler: *gcc
+#!!!        arch: *arch
+#!!!      tail: &python-tail !cat
+#!!!      - !spec {depends: *tk, compiler: *gcc}
+#!!!      - !spec {depends: libxft, compiler: *gcc}
+#!!!      - !spec {depends: fontconfig, compiler: *gcc}
+#!!!      - !spec {depends: freetype, compiler: *gcc}
+#!!!      - !spec {depends: libpng, compiler: *gcc}
+#!!!      # dev: PAUSE here to get the libxcb hash (call it hashpin)
+#!!!      #   see https://github.com/spack/spack/issues/44289
+#!!!      - !spec {depends: &libxcb-hashpin 'libxcb@1.17.0 /rev5xta'}
+#!!!      specs:
+#!!!      - !cat &python
+#!!!        - &python-base python@3.13.0
+#!!!        - &python-opts-all
+#!!!          +bz2
+#!!!          +ctypes
+#!!!          +dbm
+#!!!          ~debug
+#!!!          +libxml2
+#!!!          +lzma
+#!!!          ~nis
+#!!!          +optimizations
+#!!!          +pic
+#!!!          +pyexpat
+#!!!          +pythoncmd
+#!!!          +readline
+#!!!          +shared
+#!!!          +sqlite3
+#!!!          +ssl
+#!!!          +tkinter
+#!!!          +uuid
+#!!!          +zlib
+#!!!  # gcc openmpi middleware
+#!!!  - - !builder
+#!!!      suffix: !spec {compiler: *gcc}
+#!!!      tail: *ompi5-pin
+#!!!      specs:
+#!!!      - !cat &hdf5 
+#!!!        - hdf5@1.14.5 +cxx +fortran +hl +mpi +szip
+#!!!      - !cat &netcdf-c
+#!!!        - netcdf-c@4.9.2
+#!!!        - !spec {depends: *hdf5}
+#!!!      - !cat
+#!!!        - &netcdf-cxx netcdf-cxx4@4.3.1
+#!!!        - !spec {depends: *netcdf-c}
+#!!!      - &mkl-tbb !cat 
+#!!!        - &mkl !cat
+#!!!          - intel-oneapi-mkl@2024.2.2
+#!!!          - +cluster +envmods ~ilp64 +gfortran +shared threads=tbb mpi_family=openmpi
+#!!!        - !spec {depends: *tbb}
+#!!!      - !cat &mkl-omp
+#!!!        - intel-oneapi-mkl@2024.2.2
+#!!!        - +cluster +envmods +gfortran ~ilp64 +shared threads=openmp mpi_family=openmpi
+#!!!      - &netcdf-fortran !cat
+#!!!        - netcdf-fortran@4.6.1 ~doc +pic +shared
+#!!!        - !spec {depends: *netcdf-c}
+#!!!      - &parallel-netcdf parallel-netcdf@1.12.3 ~burstbuffer +cxx +fortran +pic +shared
+#!!!  # gcc python openmpi packages
+#!!!  - - !builder
+#!!!      suffix: *suffix
+#!!!      tail: !cat
+#!!!      - !spec {depends: *python}
+#!!!      - !spec {depends: *libxcb-hashpin}
+#!!!      - !spec {depends: *ompi5-pin}
+#!!!      specs: &python-support-mpi
+#!!!      # dev: non-python packages that require py-numpy must be marked in sol-custom/sol_custom/custom.py
+#!!!      - !cat &py-numpy
+#!!!        - &py-numpy-ver py-numpy@2.1.2
+#!!!        - !spec {depends: *mkl-tbb}
+#!!!        # dev: hashpin, see below: - !spec {depends: *py-cython}
+#!!!        - !spec {depends: *python}
+#!!!      - !cat &py-scipy
+#!!!        - &py-scipy-ver py-scipy@1.14.1
+#!!!        - !spec {depends: *py-numpy}
+#!!  # gcc python py-cython
+#!!  # dev: this was getting recompiled a lot 
+#!!  #   so we pulled out the one that supports py-numpy
+#!!  #   and we use a hashpin for this
+#!!  - - - &py-cython-hashpin py-cython /l5ydsvo
+#!!  # gcc python openmpi packages downstream
+#!!  - - !builder
+#!!      suffix: *suffix
+#!!      tail: !cat
+#!!      - !spec {depends: *python}
+#!!      - !spec {depends: *libxcb-hashpin}
+#!!      specs:
+#!!      - !cat &py-matplotlib 
+#!!        - py-matplotlib
+#!!        - !spec {depends: *py-numpy}
+#!!        - !spec {depends: *ompi5-pin}
+#!!        # dev: hashpin, see elsewhere: - !spec {depends: *py-scm}
+#!!        - !spec {depends: *python}
+#!!      #! dev: deprecated due to weird error 
+#!!      #!   previously: py-mpi4py@4.0.1 ^py-cython/l5ydsvo %gcc@12.4.0 arch=linux-almalinux9-icelake ^python@3.13.0+bz2+ctypes+dbm~debug+libxml2+lzma~nis+optimizations+pic+pyexpat+pythoncmd+readline+shared+sqlite3+ssl+tkinter+uuid+zlib ^libxcb/rev5xta
+#!!      #! - !cat &py-mpi4py 
+#!!      #!   - py-mpi4py@4.0.1
+#!!      #!   - !spec {depends: *py-cython-hashpin}
+#!!  # support for r +X
+#!!  - - !compiled
+#!!      compiler: *gcc
+#!!      arch: *arch
+#!!      specs:
+#!!      - &tcl tcl@8.6.12
+#!!      - &tk !cat
+#!!        - tk@8.6.11
+#!!        - +xft +xss
+#!!      - &openjdk openjdk@17.0.11_9
+#!!      # R dependencies added by +X
+#!!      - &harfbuzz !cat
+#!!        - harfbuzz@10.0.1
+#!!        - +graphite2 ~strip
+#!!        - !spec 
+#!!          depends: !cat &cairo 
+#!!          - cairo@1.16.0 
+#!!          - +X +fc +ft +gobject +pdf +pic ~png +shared ~svg
+#!!          - !spec 
+#!!            depends: 
+#!!              python@3.11.9
+#!!              +bz2 +crypt +ctypes +dbm ~debug +libxml2 +lzma ~nis
+#!!              ~optimizations +pic +pyexpat +pythoncmd +readline +shared +sqlite3 +ssl
+#!!              ~tkinter +uuid +zlib 
+#!!          - !spec {depends: *libxcb-hashpin}
+#!!          - !spec {depends: xcb-proto@1.17.0}
+#!!          - !spec {depends: libxext@1.3.6}
+#!!          - !spec {depends: libxrender@0.9.11}
+#!!          - !spec {depends: renderproto@0.11.1}
+#!!          - !spec {depends: pixman@0.44.0 +shared}
+#!!      # note that this has a python@3.11 build dependency so we do not pin
+#!!      - &icu4c icu4c@74.2
+#!!      - &libjpeg libjpeg-turbo@3.0.3
+#!!        ~ipo ~jpeg8 ~partial_decoder +pic
+#!!      - &libtiff libtiff@4.7.0
+#!!        +ccitt ~ipo ~jbig +jpeg ~jpeg12 ~lerc ~libdeflate +logluv ~lzma +lzw +next
+#!!        ~old-jpeg ~opengl +packbits ~pic ~pixarlog +shared +thunder ~webp +zlib
+#!!        ~zstd
+#!!      - &libtirpc libtirpc@1.3.3
+#!!      - &libx11 libx11@1.8.10
+#!!      - &libxmu libxmu@1.2.1
+#!!      - &libxt libxt@1.3.0
+#!!      - &pango pango@1.54.0
+#!!        +X ~strip
+#!!      - &texinfo texinfo@7.1
+#!!      - &which which@2.21
+#!!  # gcc R
+#!!  - - !compiled
+#!!      compiler: *gcc
+#!!      arch: *arch
+#!!      specs:
+#!!      - !cat &r
+#!!        - &r-ver r@4.4.1
+#!!        # added this line afterwards for clarity
+#!!        - +X ~memory_profiling ~rmath
+#!!        - build_system=autotools
+#!!        # constrain cmake to reuse tbb and mkl below
+#!!        - !spec {depends: *ompi5}
+#!!        - !spec {depends: *openjdk}
+#!!        # something triggers a change to mkl
+#!!        - !spec {depends: *mkl-tbb}
+#!!        - !spec {depends: *tbb}
+#!!        - !spec {depends: *harfbuzz}
+#!!        # pin to +X support above
+#!!        - !spec 
+#!!          depends: *cairo
+#!!          compiler: *gcc
+#!!          arch: *arch
+#!!        - !spec {depends: *icu4c}
+#!!        - !spec {depends: *libjpeg}
+#!!        - !spec {depends: *libtiff}
+#!!        - !spec {depends: *libtirpc}
+#!!        - !spec {depends: *libx11}
+#!!        - !spec {depends: *libxmu}
+#!!        - !spec {depends: *libxt}
+#!!        - !spec {depends: *pango}
+#!!        - !spec {depends: *texinfo}
+#!!        - !spec {depends: *tk}
+#!!        - !spec {depends: *which}
+#!!  # support for r +X
+#!!  - - !compiled
+#!!      compiler: *gcc
+#!!      arch: *arch
+#!!      specs:
+#!!      - &tcl tcl@8.6.12
+#!!      - *tk
+#!!    - !loop_depends
+#!!      base: *r
+#!!      specs:
+#!!      - r-dplyr
+#!!      - r-ggplot2
+#!!      - r-bit
+#!!      - r-bit64
+#!!      - r-withr
+#!!      - r-assertthat
+#!!      - r-magrittr
+#!!      - r-glue
+#!!      - r-rlang
+#!!      - r-r6
+#!!      - r-tidyselect
+#!!      - r-rcpp
+#!!      - r-cli
+#!!      - r-lifecycle
+#!!      - r-vctrs
+#!!      - r-purrr
+#!!      - r-fs
+#!!      - r-lobstr
+#!!      - r-cpp11
+#!!    # bioconductor
+#!!    - !loop_depends
+#!!      base: *r
+#!!      specs:
+#!!      # core items
+#!!      - r-biocmanager
+#!!      - r-biocinstaller
+#!!      # requested
+#!!      - r-biostrings
+#!!      - r-genomicranges
+#!!      # dependents
+#!!      # note that we can hide implicits so these might not strictly be necessary
+#!!      - r-biostrings
+#!!      - r-biocgenerics
+#!!      - r-genomeinfodb
+#!!      - r-genomeinfodbdata
+#!!      - r-rcurl
+#!!      - r-bitops
+#!!      - r-iranges
+#!!      - r-s4vectors
+#!!      - r-xvector
+#!!      - r-zlibbioc
+#!!      - r-genomicranges
+#!!      - r-biocgenerics
+#!!      - r-genomeinfodb
+#!!      - r-genomeinfodbdata
+#!!      - r-rcurl
+#!!      - r-bitops
+#!!      - r-iranges
+#!!      - r-s4vectors
+#!!      - r-xvector
+#!!      - r-zlibbioc
+#!!  # dev: starting here we pepper everything with compiler pins
+#!!  #   because we keep getting "Spack concretizer internal error."
+#!!  #   and this forces us to return to a more manual method,
+#!!  #   discarding the loop structures
+#!!  # intel intel-mpi middleware
+#!!  - - - !cat &hdf5-intel
+#!!        - hdf5@1.14.5 
+#!!        - !spec {compiler: *intel, arch: *arch}
+#!!        - +cxx +fortran +hl +mpi +szip
+#!!        - !spec {depends: *impi}
+#!!      - !cat &netcdf-c-intel
+#!!        - netcdf-c@4.9.2
+#!!        - !spec {depends: *hdf5-intel}
+#!!      - !cat &netcdf-cxx 
+#!!        - netcdf-cxx4@4.3.1
+#!!        - !spec {compiler: *intel, arch: *arch}
+#!!        - !spec {depends: *netcdf-c-intel}
+#!!      - &mkl-intel !cat 
+#!!        - &mkl-base-intel intel-oneapi-mkl@2024.2.2
+#!!        - &mkl-variants-intel +cluster +envmods ~ilp64 +shared threads=tbb mpi_family=mpich
+#!!        - !spec {compiler: *intel, arch: *arch}
+#!!        - !spec {depends: *impi}
+#!!        - !spec {depends: *tbb-intel}
+#!!      - &netcdf-fortran-intel !cat
+#!!        - netcdf-fortran@4.6.1 ~doc +pic +shared
+#!!        - !spec {compiler: *intel, arch: *arch}
+#!!        - !spec {depends: *netcdf-c-intel}
+#!!      - &parallel-netcdf-intel !cat
+#!!        - parallel-netcdf@1.12.3 
+#!!        - ~burstbuffer +cxx +fortran +pic +shared
+#!!  # gcc openmpi mkl cuda
+#!!  - - - !cat &gromacs23
+#!!        - &gmx-base gromacs@2023.3
+#!!        - !spec {compiler: *gcc, arch: *arch}
+#!!        - &gmx-variants
+#!!          ~cp2k
+#!!          +cuda
+#!!          ~cycle_subcounters
+#!!          ~double
+#!!          +gmxapi
+#!!          +hwloc
+#!!          ~intel_provided_gcc
+#!!          ~ipo
+#!!          ~mdrun_only
+#!!          +mpi
+#!!          +nblib
+#!!          ~nosuffix
+#!!          ~opencl
+#!!          +openmp
+#!!          ~relaxed_double_precision
+#!!          +shared build_system=cmake 
+#!!          build_type=Release 
+#!!          generator=make 
+#!!          openmp_max_threads=none
+#!!          cuda_arch=75,80,86,89
+#!!        # dev: pinning to *mkl-tbb causes gromacs to desire openblas
+#!!        #   which feels like a bug to me. 
+#!!        - !spec {depends: *mkl-omp}
+#!!        - !spec {compiler: *gcc, arch: *arch}
+#!!        - !spec {depends: *ompi5}
+#!!        - !spec {depends: *cuda126-gcc}
+#!!  # intel python
+#!!  - - !builder
+#!!      suffix: !spec
+#!!        compiler: *intel
+#!!        arch: *arch
+#!!      tail: !cat
+#!!      - !spec {depends: gdbm, compiler: *intel}
+#!!      - !spec {depends: libxcrypt, compiler: *intel}
+#!!      - !spec {depends: ncurses, compiler: *intel}
+#!!      - !spec {depends: readline, compiler: *intel}
+#!!      - !spec {depends: sqlite, compiler: *intel}
+#!!      - !spec {depends: util-linux-uuid, compiler: *intel}
+#!!      - !spec {depends: xz, compiler: *intel}
+#!!      specs:
+#!!      - !cat &python-intel 
+#!!        # oneapi can only do py-numpy 1 and this requires python 3.9
+#!!        - python@3.9.19
+#!!        # same as the python-opts-all above minus tkinter
+#!!        - +bz2
+#!!          +ctypes
+#!!          +dbm
+#!!          ~debug
+#!!          +libxml2
+#!!          +lzma
+#!!          ~nis
+#!!          +optimizations
+#!!          +pic
+#!!          +pyexpat
+#!!          +pythoncmd
+#!!          +readline
+#!!          +shared
+#!!          +sqlite3
+#!!          +ssl
+#!!          ~tkinter
+#!!          +uuid
+#!!          +zlib
+#!!  # intel python support
+#!!  - - !loop_depends
+#!!      base: !cat
+#!!      - *python-intel
+#!!      - !spec
+#!!        compiler: *intel
+#!!        arch: *arch
+#!!      compiler: *intel
+#!!      specs:
+#!!      # suport for py-cython and hence py-numpy and scipy below is standardized
+#!!      #   around a single py-pip, py-wheel, and py-setuptools at maximum version
+#!!      #   for Python 3.9 which is the highest we can go with %oneapi
+#!!      - &py-setuptools-intel py-setuptools@69.2.0
+#!!      - &py-wheel-intel py-wheel@0.41.2
+#!!      - &py-pip-intel py-pip@23.1.2
+#!!      - !cat 
+#!!        - py-packaging@24.1
+#!!        - !spec {depends: *py-wheel-intel}
+#!!      - !cat &py-cython-intel
+#!!        - py-cython@3.0.11
+#!!        - !spec {depends: *py-setuptools-intel}
+#!!        - !spec {depends: *py-wheel-intel}
+#!!        - !spec {depends: *py-pip-intel}
+#!!        - !spec {depends: *python-intel}
+#!!  #! # intel python intel-mpi packages 
+#!!  #! - - !builder
+#!!  #!     suffix: !spec {compiler: *intel}
+#!!  #!     tail: !cat 
+#!!  #!     - *python-intel
+#!!  #!     - !spec {depends: *impi}
+#!!  #!     specs:
+#!!  #!     # NOTE: are you using py-numpy in a non-python package? then say so over in
+#!!  #!     #   sol-custom/sol_custom/custom.py
+#!!  #!     - !cat &py-numpy-intel
+#!!  #!       # note that py-numpy version 2 does not work with oneapi, see spack
+#!!  #!       - py-numpy@1.26.4
+#!!  #!       - !spec {depends: *py-cython-intel}
+#!!  #!     # dev: repeated errors after significantly altering available python versions for intel
+#!!  #!     #   error is "icx: error: clang frontend command failed with exit code 70 (use -v to see invocation)
+#!!  #!     # - !cat &py-scipy-intel
+#!!  #!     #   - py-scipy@1.13.1
+#!!  #!     #   - !spec {depends: *py-numpy-intel}
+#!!  #! #! # depends on gcc openmpi mkl cuda
+#!!  #! #! - - !builder
+#!!  #! #!     suffix: !spec {depends: *ompi5}
+#!!  #! #!     tail: *mkl
+#!!  #! #!     specs:
+#!!  #! #!     - !cat
+#!!  #! #!       - &lammps-base lammps@20230802 
+#!!  #! #!       - &lammps-variant
+#!!  #! #!         +asphere +body  build_system=cmake build_type=RelWithDebInfo
+#!!  #! #!         +class2 +colloid +compress +coreshell
+#!!  #! #!         +cuda cuda_arch=89 +cuda_mps 
+#!!  #! #!         +dipole +exceptions ~ffmpeg +granular ~ipo ~jpeg 
+#!!  #! #!         +kim ~kokkos 
+#!!  #! #!         +kspace fftw_precision=double
+#!!  #! #!         lammps_sizes=smallbig 
+#!!  #! #!         +lib +manybody +mc +misc +molecule +mpi +mpiio +openmp
+#!!  #! #!         +opt +peri +png +poems +python +qeq +replica +rigid ~rocm +shock +srd +voronoi
+#!!  #! #!         +atc +h5md +meam +netcdf +phonon +qtb +reaxff
+#!!  #! #!         +extra-pair
+#!!  #! #!         +cg-dna
+#!!  #! #!       - !spec {depends: *python}
+#!!  #! #!       - !spec {depends: *py-mpi4py}
+#!!  #! #!       - !spec {depends: *netcdf-c}
+#!!  #! #!       # dev: errors on kokkos 
+#!!  #! #!       #   basically cmake says it cannot get the architecture, even though the value is set properly
+#!!  #! #!       #   - !spec {depends: kokkos +wrapper +cuda cuda_arch=89}
+#!!  #! #!       - !spec {depends: *cuda126-gcc}
+#!!  #! #!       - !spec {depends: *openblas}
+#!!  #! #!     # lammps minus CUDA for rapids 
+#!!  #! #!     - !cat
+#!!  #! #!       - &lammps-base lammps@20230802 
+#!!  #! #!       - &lammps-variant
+#!!  #!         +asphere +body  build_system=cmake build_type=RelWithDebInfo
+#!!  #!         +class2 +colloid +compress +coreshell
+#!!  #!         +dipole +exceptions ~ffmpeg +granular ~ipo ~jpeg 
+#!!  #!         +kim ~kokkos 
+#!!  #!         +kspace fftw_precision=double
+#!!  #!         lammps_sizes=smallbig 
+#!!  #!         +lib +manybody +mc +misc +molecule +mpi +mpiio +openmp
+#!!  #!         +opt +peri +png +poems +python +qeq +replica +rigid ~rocm +shock +srd +voronoi
+#!!  #!         +atc +h5md +meam +netcdf +phonon +qtb +reaxff
+#!!  #!         +extra-pair
+#!!  #!         +cg-dna
+#!!  #!       - !spec {depends: *python}
+#!!  #!       - !spec {depends: *py-mpi4py}
+#!!  #!       - !spec {depends: *netcdf-c}
+#!!  #!       # dev: errors on kokkos 
+#!!  #!       #   basically cmake says it cannot get the architecture, even though the value is set properly
+#!!  #!       #   - !spec {depends: kokkos +wrapper +cuda cuda_arch=89}
+#!!  #!       - !spec {depends: *openblas}
