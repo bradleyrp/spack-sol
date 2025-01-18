@@ -24,7 +24,7 @@ spack:
     default:
       roots:
         lmod: $SPACK_ENV/lmod
-      arch_folder: false
+      arch_folder: true
       lmod:
         core_compilers:
         - &gcc_back !system_compiler

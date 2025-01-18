@@ -150,8 +150,6 @@ spack:
           gromacs +cufftmp: 'gromacs/{version}-cufftmp'
           # gromaacs has a plumed variant
           gromacs +plumed: 'gromacs/{version}-plumed'
-          # other modifications. if dependeng on mpi, we do not include this here yet
-          boost +container: '{name}/{version}-plus'
           # standard python tree
           build_system=python_pip ^python ^mpi: &py-mpi-pro 'py-{^python.version}-{compiler.name}-{compiler.version}-{^mpi.name}-{^mpi.version}/{name}/{version}'
           build_system=python_pip ^python: &py-pro 'py-{^python.version}-{compiler.name}-{compiler.version}/{name}/{version}' 
@@ -208,18 +206,20 @@ spack:
       compiler: &gcc-prev gcc@12.4.0
       arch: &arch arch=linux-almalinux9-cascadelake
       specs:
-      - &zlib zlib@1.3.1 +optimize+pic+shared build_system=makefile
-      - &bzip bzip2@1.0.8 ~debug~pic+shared build_system=generic
       - &git git@2.47.0
       - &tbb intel-oneapi-tbb@2022.0.0
       - &cmake cmake@3.30.5 ~doc +ncurses +ownlibs ~qtgui
-      # note that this produces a "hashpin" we use below
+      - &zlib zlib@1.3.1 +optimize+pic+shared build_system=makefile
+      - &zlib-ng zlib-ng@2.2.1 +compat +new_strategies +opt +pic +shared
+      - &lz4 lz4@1.10.0 libs=shared,static +pic +ipo
+      - &bzip bzip2@1.0.8 ~debug~pic+shared build_system=generic
+      # note that this produces a "hashpin" we use below to compile python
       - libxcb@1.17.0
       - !cat &openblas
         - openblas@0.3.28 
         - ~bignuma ~consistent_fpcsr +fortran ~ilp64 +locking +pic +shared
-      # anaconda is critical but installation was taking over an hour!
-      #   so we discard it: anaconda3@2023.09-0 
+      # anaconda is critical but installation was taking over an hour
+      #   so we discard in favor of miniconda: anaconda3@2023.09-0 
       - miniconda3@24.7.1
   # gcc openmpi
   - - !builder
@@ -235,6 +235,7 @@ spack:
       arch: *arch
       specs:
       - *zlib
+      - *zlib-ng
       - *bzip 
       - *git
       - &tbb-intel intel-oneapi-tbb@2022.0.0
@@ -347,10 +348,6 @@ spack:
         - !spec {depends: *py-cython-hashpin}
         - !spec {depends: *ompi5}
   # support for r +X
-  #! - - - &py311-extra !cat
-  #!       # for some reason the lower python ~tkinter needs to be exposed as a module
-  #!       #   or else overspack complains, perhaps doe to some related pacakges?
-  #!       - python@3.11.9 %gcc@12.4.0 /kx776lz
   - - !compiled
       compiler: *gcc
       arch: *arch
@@ -431,20 +428,6 @@ spack:
         - !spec {depends: *which}
         # cannot pin to python here because R requires cario
         #   which seems to need a lower python@3.11
-  #! # support for r +X
-  #! - - !compiled
-  #!     compiler: *gcc
-  #!     arch: *arch
-  #!     specs:
-  #!     - &tcl tcl@8.6.12
-  #!     - *tk
-  #!   - !loop_depends
-  # central R
-  #! - - - &r !cat
-  #!       - r@4.4.1 +X ~memory_profiling ~rmath
-  #!       - !spec {compiler: *gcc, arch: *arch}
-  #!       - !spec {depends: *mkl-tbb}
-  #!       - !spec {depends: *python-hashpin}
   # support for r +X
   - - !loop_depends
       base: *r
@@ -703,11 +686,6 @@ spack:
         - !spec {depends: *cuda126-gcc}
         - !spec {depends: *plumed}
   # gcc openmpi middleware
-  #! - - - &python-for-boost !cat
-  #!       - python@3.12.5
-  #!         +bz2 +crypt +ctypes +dbm ~debug +libxml2 +lzma ~nis 
-  #!         ~optimizations +pic +pyexpat +pythoncmd +readline 
-  #!         +shared +sqlite3 +ssl ~tkinter +uuid +zlib
   - - - !cat
         - eigen@3.4.0
   - - - !cat
@@ -757,8 +735,9 @@ spack:
         - !spec {depends: *metis}
       - !cat &superlu-dist
         - superlu-dist@9.1.0
-        # cannot use cuda or atomicAdd error
-        # ...!!! confirm this later
+        # some +cuda packages around here require you to build on a cuda node
+        #   hopefully this is not a problem later. error was atomicAdd
+        #   see petsc installation below, where I marked this libcuda.so requirement
         - +cuda ~int64 ~ipo ~openmp +parmetis ~rocm +shared
           cuda_arch=75,80,86,89
         - !spec {depends: *metis}
@@ -795,34 +774,27 @@ spack:
   # wym219
   - - - !cat
         - trinity@2.15.1.FULL
+        # note that we use a strategic retreat here. after enormous struggle,
+        #   we got trinity to use the same R, so even though it brings its own
+        #   boost, and this requires its own separate python and py-numpy,
+        #   at least it works. in addition to matching this with our existing R
+        #   implicitly (we could not do it with a hashpin), we also removed 
+        #   redundancy with intel-oneapi-mkl by carefully reviewing the spack diff
+        #   results. the only thing that remained was zlib-ng and this caused 
+        #   massive recompiles all due to one package: star. after much
+        #   struggle, we changed star from conflicts zlib-ng to depends_on zlib
+        #   and this allowed us to concretize. note that I don't fully understand
+        #   why concretize doesn't do this for us, or if there are any conseqeunces
+        #   to making this switch, but my understanding is that spack keeps the
+        #   dependencies isolated enough that it shouldn't matter, and this was
+        #   just a small inefficient command from the maintainers of star/package.py 
         - !spec {depends: *r}
-        #! - !spec {depends: boost@1.86.0 /iqv7q5i}
         - !spec {depends: *mkl-tbb}
-        #! - !spec {depends: *python-hashpin}
-        #! - !spec {depends: r@4.4.1 /hn6u2px}
-        #! - '^[virtuals=zlib] star@2.7.11b'
-          #! depends: !cat
-          #! - r@4.4.1 +X ~memory_profiling ~rmath
-          #! - !spec {compiler: *gcc, arch: *arch}
-          #! - !spec {depends: *mkl-tbb}
-          #! - !spec {depends: python@3.13.0}
-          #! - !spec {depends: zlib-ng@2.2.1} 
-          #! - !spec {depends: star@2.7.11b /w3iwka4}
-        # we see that trinity rolls its own:
-        #   - boost because it needs python@3.12 not 3.13 like the main one
-        #   - it uses python@3.11 and numpy and cython on top of that
-        # note that we are struggling to reduce redundancy here
-        #! - !spec {depends: *r}
-        # - !spec {depends: r@4.4.1 /hfasbin}
-        #!- !spec {depends: zlib-ng@2.2.1 /y3gdxs3}
-        #! - !spec {depends: pango@1.54.0 /2roeuf2}
-        #! - !spec {depends: *boost}
-        #! - !spec {depends: boost /sqlbmqa}
   # dar421
   - - - !cat
         - arrow@18.0.0
-        #!  ~brotli ~compute ~cuda ~gandiva ~glog ~hdfs +ipc ~ipo ~jemalloc +lz4 ~orc +parquet
-        #!  +python +shared +snappy ~tensorflow +zlib +zstd
-        #!  +csv
+        - +brotli +bz2 +compute ~cuda ~gandiva +glog ~hdfs +ipc +ipo ~jemalloc +lz4
+          ~orc +parquet +python +shared +snappy ~tensorflow +zlib +zstd
+        - !spec {depends: *lz4}
         - !spec {depends: *boost}
         - !spec {depends: *py-numpy}
