@@ -7,20 +7,9 @@ spack:
   view: false
   concretizer: 
     # do not use reuse or this breaks reproducibility
-    # we are stuck with when_possible due to a concretizer error
-    #   namely "something depends_on a non-node" however we are
-    #   extremely wary of this solution because small changes
-    #   in e.g. bzip2 for one compiler triggered massive recompiles.
-    #   note that I tried unify:false for a while after using a
-    #   hashpin for libxcb due to an open issue, but continued
-    #   to get this error and then relented to when_possible.
-    #   note that this behavior appears to be a major regression
-    #   sometime between v0.21 and v0.23 for this use-case
-    # and again we rolls this back because it keeps trying to
-    #   compile more packages even with minor changes that reduce
-    #   the size of the tree
+    # we also find when_possible triggers major recompiles
     unify: false
-    reuse: true
+    reuse: false
   # CONFIG
   config:
     # pack the install root with the superspec
@@ -102,6 +91,74 @@ spack:
         prefix: /share/Apps/cascade24v2/oneapi-2025.0.0/cuda-12.6.2-7653ixn465x3mzgtnod2evjins47qekd
       - spec: &cuda126-gcc cuda@12.6.2%gcc@12.4.0+allow-unsupported-compilers~dev build_system=generic arch=linux-almalinux9-cascadelake
         prefix: /share/Apps/cascade24v2/gcc-12.4.0/cuda-12.6.2-4bnnvhtdkeytxwmiohbirolvkkxh6qpi
+    # EXTERNALS from build-s04-p03.yaml
+    cairo:
+      buildable: false
+      externals:
+      - spec: cairo@1.16.0%gcc@12.4.0+X+fc+ft+gobject+pdf+pic~png+shared~svg build_system=autotools patches=7097196,7c4da77 arch=linux-almalinux9-cascadelake
+        prefix: /share/Apps/build/cascade24v2/marianatrenchbuildsite/linux-almalinux9-cascadelake/gcc-12.4.0/cairo-1.16.0-mauhn7culigwerxrxko7os55wc4a3c2j
+      - spec: cairo@1.16.0%gcc@12.4.0+X+fc+ft+gobject+pdf+pic~png+shared~svg build_system=autotools patches=7097196,7c4da77 arch=linux-almalinux9-cascadelake
+        prefix: /share/Apps/build/cascade24v2/marianatrenchbuildsite/linux-almalinux9-cascadelake/gcc-12.4.0/cairo-1.16.0-o55jiklh2nudyyolwdnrshnhwdz3usoh
+    harfbuzz:
+      buildable: false
+      externals:
+      - spec: harfbuzz@10.0.1%gcc@12.4.0~graphite2~strip build_system=meson buildtype=release default_library=shared arch=linux-almalinux9-cascadelake
+        prefix: /share/Apps/build/cascade24v2/marianatrenchbuildsite/linux-almalinux9-cascadelake/gcc-12.4.0/harfbuzz-10.0.1-kjyihptqtfq6jerxacpaftlshmo5prtq
+    icu4c:
+      buildable: false
+      externals:
+      - spec: icu4c@74.2%gcc@12.4.0 build_system=autotools cxxstd=11 arch=linux-almalinux9-cascadelake
+        prefix: /share/Apps/build/cascade24v2/marianatrenchbuildsite/linux-almalinux9-cascadelake/gcc-12.4.0/icu4c-74.2-arw27j4zrg7avymtv5ggcgudb7mjw4zw
+    libjpeg-turbo:
+      buildable: false
+      externals:
+      - spec: libjpeg-turbo@3.0.3%gcc@12.4.0~ipo~jpeg8~partial_decoder+pic build_system=cmake build_type=Release generator=make libs=shared,static arch=linux-almalinux9-cascadelake
+        prefix: /share/Apps/build/cascade24v2/marianatrenchbuildsite/linux-almalinux9-cascadelake/gcc-12.4.0/libjpeg-turbo-3.0.3-owfxvlaslbwsdevdqnjm65t4zfipujby
+    libtiff:
+      buildable: false
+      externals:
+      - spec: libtiff@4.7.0%gcc@12.4.0+ccitt~ipo~jbig+jpeg~jpeg12~lerc~libdeflate+logluv~lzma+lzw+next~old-jpeg~opengl+packbits~pic~pixarlog+shared+thunder~webp+zlib~zstd build_system=cmake build_type=Release generator=make arch=linux-almalinux9-cascadelake
+        prefix: /share/Apps/build/cascade24v2/marianatrenchbuildsite/linux-almalinux9-cascadelake/gcc-12.4.0/libtiff-4.7.0-t5hp23gxp7drfxywbmagrhzbdeg3mrx3
+    libtirpc:
+      buildable: false
+      externals:
+      - spec: libtirpc@1.3.3%gcc@12.4.0 build_system=autotools arch=linux-almalinux9-cascadelake
+        prefix: /share/Apps/build/cascade24v2/marianatrenchbuildsite/linux-almalinux9-cascadelake/gcc-12.4.0/libtirpc-1.3.3-sbghbiikobydsv4nwyvajqmg7tbpkqj2
+    libx11:
+      buildable: false
+      externals:
+      - spec: libx11@1.8.10%gcc@12.4.0 build_system=autotools arch=linux-almalinux9-cascadelake
+        prefix: /share/Apps/build/cascade24v2/marianatrenchbuildsite/linux-almalinux9-cascadelake/gcc-12.4.0/libx11-1.8.10-cr76v2pphzq3epvgkdzjgrwrfvtbu3vy
+    libxmu:
+      buildable: false
+      externals:
+      - spec: libxmu@1.2.1%gcc@12.4.0 build_system=autotools arch=linux-almalinux9-cascadelake
+        prefix: /share/Apps/build/cascade24v2/marianatrenchbuildsite/linux-almalinux9-cascadelake/gcc-12.4.0/libxmu-1.2.1-6vyjnv4vlkrnuqiudlq5bdbk4xrvbyrz
+    libxt:
+      buildable: false
+      externals:
+      - spec: libxt@1.3.0%gcc@12.4.0 build_system=autotools arch=linux-almalinux9-cascadelake
+        prefix: /share/Apps/build/cascade24v2/marianatrenchbuildsite/linux-almalinux9-cascadelake/gcc-12.4.0/libxt-1.3.0-s6smnxl5ps3ecy5czmwphvlkrh6eo7bh
+    openjdk:
+      buildable: false
+      externals:
+      - spec: openjdk@17.0.11_9%gcc@12.4.0 build_system=generic certs=none arch=linux-almalinux9-cascadelake
+        prefix: /share/Apps/build/cascade24v2/marianatrenchbuildsite/linux-almalinux9-cascadelake/gcc-12.4.0/openjdk-17.0.11_9-tawisihcs3nna4faboufsoygxfz76ofo
+    pango:
+      buildable: false
+      externals:
+      - spec: pango@1.54.0%gcc@12.4.0+X~strip build_system=meson buildtype=release default_library=shared arch=linux-almalinux9-cascadelake
+        prefix: /share/Apps/build/cascade24v2/marianatrenchbuildsite/linux-almalinux9-cascadelake/gcc-12.4.0/pango-1.54.0-2roeuf2rreywekj6ei57vw6yfti46lc5
+    tcl:
+      buildable: false
+      externals:
+      - spec: tcl@8.6.12%gcc@12.4.0 build_system=autotools arch=linux-almalinux9-cascadelake
+        prefix: /share/Apps/build/cascade24v2/marianatrenchbuildsite/linux-almalinux9-cascadelake/gcc-12.4.0/tcl-8.6.12-sg2pdpch3husmipwvctbe2s2jhqj5epu
+    tk:
+      buildable: false
+      externals:
+      - spec: tk@8.6.11%gcc@12.4.0+xft+xss build_system=autotools arch=linux-almalinux9-cascadelake
+        prefix: /share/Apps/build/cascade24v2/marianatrenchbuildsite/linux-almalinux9-cascadelake/gcc-12.4.0/tk-8.6.11-as3v7w4an2hyj2ieglsn6qvh7si342iu
   # MODULES
   modules:
     # configurations for a module set
@@ -250,25 +307,25 @@ spack:
       specs:
       - osu-micro-benchmarks@7.4
   # support for tk, python +tkinter
-  - - !compiled
-      compiler: *gcc
-      arch: *arch
-      specs:
-      - &tcl tcl@8.6.12
-      - !cat &tk 
-        - tk@8.6.11
-        - !spec {depends: *tcl}
+  #! - - !compiled
+  #!     compiler: *gcc
+  #!     arch: *arch
+  #!     specs:
+  #!     - &tcl tcl@8.6.12
+  #!     - !cat &tk 
+  #!       - tk@8.6.11
+  #!       - !spec {depends: *tcl}
   # gcc python
   - - !builder
       suffix: &suffix !spec
         compiler: *gcc
         arch: *arch
       tail: &python-tail !cat
-      - !spec {depends: *tk, compiler: *gcc}
-      - !spec {depends: libxft, compiler: *gcc}
-      - !spec {depends: fontconfig, compiler: *gcc}
-      - !spec {depends: freetype, compiler: *gcc}
-      - !spec {depends: libpng, compiler: *gcc}
+      #! #! - !spec {depends: *tk, compiler: *gcc}
+      #! - !spec {depends: libxft, compiler: *gcc}
+      #! - !spec {depends: fontconfig, compiler: *gcc}
+      #! - !spec {depends: freetype, compiler: *gcc}
+      #! - !spec {depends: libpng, compiler: *gcc}
       # PAUSE here to get the libxcb hashpin
       #   see https://github.com/spack/spack/issues/44289
       - !spec {depends: &libxcb-hashpin 'libxcb@1.17.0 /rev5xta'}
@@ -345,55 +402,55 @@ spack:
         - !spec {depends: *py-cython-hashpin}
         - !spec {depends: *ompi5}
   # support for r +X
-  - - - &py311-extra !cat
-        # for some reason the lower python ~tkinter needs to be exposed as a module
-        #   or else overspack complains, perhaps doe to some related pacakges?
-        - python@3.11.9 %gcc@12.4.0 /kx776lz
-    - !compiled
-      compiler: *gcc
-      arch: *arch
-      specs:
-      - &tcl tcl@8.6.12
-      - &tk !cat
-        - tk@8.6.11
-        - +xft +xss
-      - &openjdk openjdk@17.0.11_9
-      # R dependencies added by +X
-      - &harfbuzz !cat
-        - harfbuzz@10.0.1
-        - +graphite2 ~strip
-        - !spec 
-          depends: !cat &cairo 
-          - cairo@1.16.0 
-          - +X +fc +ft +gobject +pdf +pic ~png +shared ~svg
-          - !spec 
-            depends: 
-              python@3.11.9
-              +bz2 +crypt +ctypes +dbm ~debug +libxml2 +lzma ~nis
-              ~optimizations +pic +pyexpat +pythoncmd +readline +shared +sqlite3 +ssl
-              ~tkinter +uuid +zlib 
-          - !spec {depends: *libxcb-hashpin}
-          - !spec {depends: xcb-proto@1.17.0}
-          - !spec {depends: libxext@1.3.6}
-          - !spec {depends: libxrender@0.9.11}
-          - !spec {depends: renderproto@0.11.1}
-          - !spec {depends: pixman@0.44.0 +shared}
-      # note that this has a python@3.11 build dependency so we do not pin
-      - &icu4c icu4c@74.2
-      - &libjpeg libjpeg-turbo@3.0.3
-        ~ipo ~jpeg8 ~partial_decoder +pic
-      - &libtiff libtiff@4.7.0
-        +ccitt ~ipo ~jbig +jpeg ~jpeg12 ~lerc ~libdeflate +logluv ~lzma +lzw +next
-        ~old-jpeg ~opengl +packbits ~pic ~pixarlog +shared +thunder ~webp +zlib
-        ~zstd
-      - &libtirpc libtirpc@1.3.3
-      - &libx11 libx11@1.8.10
-      - &libxmu libxmu@1.2.1
-      - &libxt libxt@1.3.0
-      - &pango pango@1.54.0
-        +X ~strip
-      - &texinfo texinfo@7.1
-      - &which which@2.21
+  #! - - - &py311-extra !cat
+  #!       # for some reason the lower python ~tkinter needs to be exposed as a module
+  #!       #   or else overspack complains, perhaps doe to some related pacakges?
+  #!       - python@3.11.9 %gcc@12.4.0 /kx776lz
+  #! - - !compiled
+  #!     compiler: *gcc
+  #!     arch: *arch
+  #!     specs:
+  #!     - &tcl tcl@8.6.12
+  #!     - &tk !cat
+  #!       - tk@8.6.11
+  #!       - +xft +xss
+  #!     - &openjdk openjdk@17.0.11_9
+  #!     # R dependencies added by +X
+  #!     - &harfbuzz !cat
+  #!       - harfbuzz@10.0.1
+  #!       - +graphite2 ~strip
+  #!       - !spec 
+  #!         depends: !cat &cairo 
+  #!         - cairo@1.16.0 
+  #!         - +X +fc +ft +gobject +pdf +pic ~png +shared ~svg
+  #!         - !spec 
+  #!           depends: 
+  #!             python@3.11.9
+  #!             +bz2 +crypt +ctypes +dbm ~debug +libxml2 +lzma ~nis
+  #!             ~optimizations +pic +pyexpat +pythoncmd +readline +shared +sqlite3 +ssl
+  #!             ~tkinter +uuid +zlib 
+  #!         - !spec {depends: *libxcb-hashpin}
+  #!         - !spec {depends: xcb-proto@1.17.0}
+  #!         - !spec {depends: libxext@1.3.6}
+  #!         - !spec {depends: libxrender@0.9.11}
+  #!         - !spec {depends: renderproto@0.11.1}
+  #!         - !spec {depends: pixman@0.44.0 +shared}
+  #!     # note that this has a python@3.11 build dependency so we do not pin
+  #!     - &icu4c icu4c@74.2
+  #!     - &libjpeg libjpeg-turbo@3.0.3
+  #!       ~ipo ~jpeg8 ~partial_decoder +pic
+  #!     - &libtiff libtiff@4.7.0
+  #!       +ccitt ~ipo ~jbig +jpeg ~jpeg12 ~lerc ~libdeflate +logluv ~lzma +lzw +next
+  #!       ~old-jpeg ~opengl +packbits ~pic ~pixarlog +shared +thunder ~webp +zlib
+  #!       ~zstd
+  #!     - &libtirpc libtirpc@1.3.3
+  #!     - &libx11 libx11@1.8.10
+  #!     - &libxmu libxmu@1.2.1
+  #!     - &libxt libxt@1.3.0
+  #!     - &pango pango@1.54.0
+  #!       +X ~strip
+  #!     - &texinfo texinfo@7.1
+  #!     - &which which@2.21
   # gcc R
   - - !compiled
       compiler: *gcc
@@ -406,35 +463,36 @@ spack:
         - build_system=autotools
         # constrain cmake to reuse tbb and mkl below
         - !spec {depends: *ompi5}
-        - !spec {depends: *openjdk}
+        #! - !spec {depends: *openjdk}
+        - !spec {depends: *python-hashpin}
         # something triggers a change to mkl
         - !spec {depends: *mkl-tbb}
         - !spec {depends: *tbb}
-        - !spec {depends: *harfbuzz}
-        # pin to +X support above
-        - !spec 
-          depends: *cairo
-          compiler: *gcc
-          arch: *arch
-        - !spec {depends: *icu4c}
-        - !spec {depends: *libjpeg}
-        - !spec {depends: *libtiff}
-        - !spec {depends: *libtirpc}
-        - !spec {depends: *libx11}
-        - !spec {depends: *libxmu}
-        - !spec {depends: *libxt}
-        - !spec {depends: *pango}
-        - !spec {depends: *texinfo}
-        - !spec {depends: *tk}
-        - !spec {depends: *which}
+        #! - !spec {depends: *harfbuzz}
+        #! # pin to +X support above
+        #! - !spec 
+        #!   depends: *cairo
+        #!   compiler: *gcc
+        #!   arch: *arch
+        #! - !spec {depends: *icu4c}
+        #! - !spec {depends: *libjpeg}
+        #! - !spec {depends: *libtiff}
+        #! - !spec {depends: *libtirpc}
+        #! - !spec {depends: *libx11}
+        #! - !spec {depends: *libxmu}
+        #! - !spec {depends: *libxt}
+        #! - !spec {depends: *pango}
+        #! - !spec {depends: *texinfo}
+        #! - !spec {depends: *tk}
+        #! - !spec {depends: *which}
   # support for r +X
-  - - !compiled
-      compiler: *gcc
-      arch: *arch
-      specs:
-      - &tcl tcl@8.6.12
-      - *tk
-    - !loop_depends
+  #! - - !compiled
+  #!     compiler: *gcc
+  #!     arch: *arch
+  #!     specs:
+  #!     - &tcl tcl@8.6.12
+  #!     - *tk
+  - - !loop_depends
       base: *r
       specs:
       - r-dplyr
