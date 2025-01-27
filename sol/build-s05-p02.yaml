@@ -150,6 +150,7 @@ spack:
     # hwloc and libevent
     - !compiled
       compiler: *gcc
+      arch: *arch
       specs: 
       - !cat
         - &hwloc 

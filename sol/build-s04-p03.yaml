@@ -2,12 +2,12 @@ spack:
   # CUSTOM MODULES
   # these modifications blacklist the system compiler to make Core packages
   # this streamlines the lmod tree that we expose to the users
-  # dev: could have sworn you could not set this, but now it is required or else
-  #   we have collisions
   view: false
   concretizer: 
-    # do not use reuse or this breaks reproducibility
-    # we also find when_possible triggers major recompiles
+    # DO NOT use reuse or this breaks reproducibility
+    #   we also find when_possible triggers major recompiles
+    #   despite the fact that this is aimed at HPC centers,
+    #   because it also breaks reoproducibility
     unify: false
     reuse: false
   # CONFIG
@@ -91,6 +91,8 @@ spack:
         prefix: /share/Apps/cascade24v2/oneapi-2025.0.0/cuda-12.6.2-7653ixn465x3mzgtnod2evjins47qekd
       - spec: &cuda126-gcc cuda@12.6.2%gcc@12.4.0+allow-unsupported-compilers~dev build_system=generic arch=linux-almalinux9-cascadelake
         prefix: /share/Apps/cascade24v2/gcc-12.4.0/cuda-12.6.2-4bnnvhtdkeytxwmiohbirolvkkxh6qpi
+      - spec: &cuda124-gcc cuda@12.4.1%gcc@12.4.0+allow-unsupported-compilers~dev build_system=generic arch=linux-almalinux9-cascadelake
+        prefix: /share/Apps/cascade24v2/gcc-12.4.0/cuda-12.4.1-x4xosu2vfskros46zmxcoy76ck76q3bf
     # develop was giving errors and I could not pin this to silo
     #   because it depends on libtool in two places so I restrict it here
     libtool:
@@ -98,12 +100,9 @@ spack:
     # we notice that zlib-ng is foundational and attempt to control it here
     all:  
       providers:
+        # we try to target zlib-ng, but one example, trinity ^star has
+        #   a conflict with zlib-ng so we change it to depends_on zlib
         zlib-api: [zlib-ng@2.2.1 +compat]
-        # this is critical to avoiding r^python@3.11 and avoiding module errors
-        #  note that problem inspired the osp mezzanine command, now deprecated
-        #  along with the attempt to use build-s04-p03.yaml as a middleware step that
-        #  we pin in build-s04-p04.yaml that ultimately failed
-        python%gcc: [python@3.13.0]
   # MODULES
   modules:
     # configurations for a module set
@@ -126,16 +125,54 @@ spack:
         #   avoid conflicts, we control this at the module level
         #   and also tag r@4.4.1 back in below
         - python@3.11.9
-        #! - ^python@3.11.9
+        - ^python@3.11.9
+        # we exclude this because of noisy messages when it reloads, namely:
+        #   The following dependent module(s) are not currently loaded: 
+        #     <name> (required by: <excessive names, hashes>
+        - font-util
+        - freetype
+        - libpng
+        # exclude more basic utilities
+        #   dev: we would like to rescue these for the users to compile against,
+        #     but this is lower priority than simplifying the module tree
+        - bzip2
+        - hwloc
+        - icu4c
+        - libevent
+        - libjpeg-turbo
+        - libtiff
+        - libtirpc
+        - libx11
+        - libxcb
+        - libxmu
+        - libxt
+        - lz4
+        - texinfo
+        - which
+        - zlib
+        - zlib-ng
         include:
         - gcc
         - openmpi
         - intel-oneapi-compilers
         - intel-oneapi-mpi
+        # see comments near exclude_implicits 
+        #   here we BULK include all python to make sure they can load
+        #   without import errors, ModuleNotFound
+        - build_system=python_pip ^python@3.13.0
+        - build_system=python_pip ^python@3.9.19
         # override the exclusion above
-        - ^r@4.4.1 ^python@3.11.9
+        - r@4.4.1 ^python@3.11.9
+        - ^r
+        # REVEAL project-specific dependencies
+        #! # project: modules that support wym219
+        #! - blast-plus@2.16.0
+        #! - bowtie@1.3.1
+        #! - bowtie2@2.5.2
+        #! - bamtools@2.5.2
+        #! - salmon@1.10.3
         # whenever a modulefile refers to a custom projection
-        #   note that we use Core specs to stage the modules before modulefix functions
+        #   note that we use Core specs to stage the modules before overspack modulefix functions
         core_specs:
         # match these core specs with the projections below
         - ^r
@@ -146,7 +183,17 @@ spack:
         - py-wheel
         - py-setuptools
         - py-pybind11
-        # it is critical that we avoid excluding implicits or for example py-matplotlib will
+        # spack recommends hiding implicits, which get a hash to avoid collisions, to avoid 
+        #   showing too many packages to the user in e.g. module avail, (see the tip at 
+        #   https://spack.readthedocs.io/en/latest/module_file_support.html). in the past, we
+        #   have used exclude_implicits:false because some of our key user-facing targets, namely
+        #   py-matplotlib, would give errors when you import it, claiming that it cannot import PIL,
+        #   which comes from py-pillow. the problem is that exclude_implicits:false makes the module
+        #   tree explode in size. at some point it was taking trinity, which depends on lots of R 
+        #   packages, nearly 5min to load, even with cache. our goal is to exclude implicits and
+        #   use the lmod section to restore functionality for packages like py-matplotlib. 
+        # previously, we wrote the following note, NOW DEPRECATED, (see above):
+        #   it is critical that we avoid excluding implicits or for example py-matplotlib will
         #   not include the PYTHONPATH for a run dependency, py-pillow in the modulefile. for
         #   some reason this was not an issue with R and its dependent packages. note also that
         #   it is extremely tricky to test this. you need a completely new session or else a success
@@ -158,6 +205,8 @@ spack:
         # this is critical to ensuring that PYTHONPATH for packages such as py-matplotlib
         #   includes all of the correct modules. this might be a change in spack v0.21 that did
         #   not make its way into the docs, see https://github.com/spack/spack/issues/42535
+        # note that ^python:autoload:direct did not fix matplotlib
+        #   hence we bulk include all python above
         hide_implicits: true
         hash_length: 0
         projections:
@@ -181,6 +230,7 @@ spack:
           # MKL has TBB versions
           intel-oneapi-mkl threads=tbb: 'intel-oneapi-mkl/{version}-tbb'
           intel-oneapi-mkl threads=openmp: 'intel-oneapi-mkl/{version}'
+          nccl ^cuda@12.4.1: 'nccl/{version}-cuda-12.4'
         # patching in pmix for openmpi for some reason
         openmpi:
           environment:
@@ -195,9 +245,13 @@ spack:
               'LURC_{name}_DIR': '{prefix}'
       # recover the LD_LIBRARY_PATH behavior
       #   this was prompted by sundials
+      #   later removed because it caused an error with openssl,
+      #   which is an upstream python dependency. hopefully
+      #   we can add it back as needed
       prefix_inspections:
-        ./lib64: [LD_LIBRARY_PATH]  
-        ./lib: [LD_LIBRARY_PATH]
+        # ./lib64: [LD_LIBRARY_PATH]  
+        # ./lib: [LD_LIBRARY_PATH]
+        # retain this or some people complain about missing mpi.h
         ./include: [C_INCLUDE_PATH,CPLUS_INCLUDE_PATH]
   # specs in a superspec format, using list of lists
   specs: !flatten
@@ -212,6 +266,15 @@ spack:
   - - - intel-oneapi-compilers@2025.0.0
   # gcc cuda
   - - - *cuda126-gcc          
+      - !cat
+        - nccl@2.22.3-1
+          cuda_arch=75,80,86,89
+        - !spec {depends: *cuda126-gcc}
+  - - - *cuda124-gcc          
+  - - - !cat
+        - nccl@2.22.3-1
+          cuda_arch=75,80,86,89
+        - !spec {depends: *cuda124-gcc}
   # intel cuda
   - - - *cuda126-intel         
   # intel mpi
@@ -235,7 +298,10 @@ spack:
         - ~bignuma ~consistent_fpcsr +fortran ~ilp64 +locking +pic +shared
       # anaconda is critical but installation was taking over an hour
       #   so we discard in favor of miniconda: anaconda3@2023.09-0 
+      # note that we have modifications to the condarc, see rcnotes/doc/rc-hpc-software.md
       - miniconda3@24.7.1
+      # miniforge allows us to avoid breaking the Continuum Inc and Anaconda TOS
+      - miniforge3@24.3.0-0 +mamba
   # gcc openmpi
   - - !builder
       suffix: !spec {compiler: *gcc}
@@ -380,7 +446,6 @@ spack:
           depends: !cat &cairo 
           - cairo@1.16.0 
           - +X +fc +ft +gobject +pdf +pic ~png +shared ~svg
-          #! - !spec {depends: *python-hashpin}
           - !spec 
             depends: 
               python@3.11.9
@@ -444,15 +509,6 @@ spack:
         - !spec {depends: *which}
         # cannot pin to python here because R requires cario
         #   which seems to need a lower python@3.11
-#!   # gcc R
-#!   - - - !cat &r
-#!         - &r-ver r@4.4.1
-#!         - +X ~memory_profiling ~rmath
-#!         - build_system=autotools
-#!         #! - !spec {depends: *ompi5}
-#!         #! - !spec {depends: *mkl-tbb}
-#!         #! - !spec {depends: *tbb}
-#!         #! - !spec {depends: *python-hashpin}
   # support for r +X
   - - !loop_depends
       base: *r
@@ -711,9 +767,10 @@ spack:
         - !spec {depends: *cuda126-gcc}
         - !spec {depends: *plumed}
   # gcc openmpi middleware
+  # for ada823
   - - - !cat
         - eigen@3.4.0
-  - - - !cat
+  - - - !cat &silo
         - silo@4.11.1
           +fortran +fpzip +hdf5 +hzip +mpi +pic ~python +shared ~silex
         # silo +python uses autotools to detect the system python and would
@@ -724,6 +781,11 @@ spack:
         #   this dependency correctly
         - !spec {depends: hdf5@1.14.5 /yqcrqe4}
         - !spec {depends: *ompi5}
+  - - - !cat
+        - samrai@3.12.0
+        - !spec {depends: *silo}
+  - - - muparser@2.3.4 
+  # for everyone
   - - - &boost !cat
         - boost@1.86.0
           +atomic +charconv +chrono ~clanglibcpp
@@ -815,6 +877,12 @@ spack:
         #   just a small inefficient command from the maintainers of star/package.py 
         - !spec {depends: *r}
         - !spec {depends: *mkl-tbb}
+      # expose useful dependencies
+      - blast-plus@2.16.0 /v2wbwbr
+      - bowtie@1.3.1 /egsuhbt 
+      - bowtie2@2.5.2 /7s57hjl
+      - bamtools@2.5.2 /bf2jnv3
+      - salmon@1.10.3 /p3356xu
   # dar421
   - - - !cat
         - arrow@18.0.0
@@ -823,3 +891,10 @@ spack:
         - !spec {depends: *lz4}
         - !spec {depends: *boost}
         - !spec {depends: *py-numpy}
+      - !cat
+        - duckdb@1.1.2 
+        - !spec {depends: *python-hashpin}
+  # added for better debugging
+  - - - !cat
+        - gdb@15.2 +debuginfod ~gold +ld ~lto +python ~quad +source-highlight +tui +xz 
+        - !spec {depends: *boost}

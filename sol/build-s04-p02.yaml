@@ -100,6 +100,7 @@ spack:
       compiler: !cat [*gcc, *arch]
       specs:
       - &cuda cuda@12.6.2 +allow-unsupported-compilers
+      - &cuda124 cuda@12.4.1 +allow-unsupported-compilers
       # deprecated but reserved for later
       # - &cmake cmake@3.30.5 ~qtgui ^curl +libidn2
       - &ucx !cat
