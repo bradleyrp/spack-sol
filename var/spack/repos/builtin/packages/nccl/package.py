@@ -91,3 +91,7 @@ class Nccl(MakefilePackage, CudaPackage):
             return ["PREFIX={0}".format(self.prefix), "src.install"]
         else:
             return ["PREFIX={0}".format(self.prefix), "install"]
+
+    def setup_build_environment(self, env):
+        # rpb222 adjusts for intel
+        env.set('NVCC_APPEND_FLAGS','-allow-unsupported-compiler')

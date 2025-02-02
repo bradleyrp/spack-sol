@@ -335,6 +335,10 @@ class Hypre(AutotoolsPackage, CudaPackage, ROCmPackage):
 
         configure_args.extend(self.enable_or_disable("fortran"))
 
+        # rpb222 additions
+        if "^cuda+allow-unsupported-compilers" in self.spec:
+            configure_args.append("NVCC_FLAGS=-allow-unsupported-compiler")
+
         return configure_args
 
     def setup_build_environment(self, env):
@@ -346,6 +350,8 @@ class Hypre(AutotoolsPackage, CudaPackage, ROCmPackage):
                 env.set("F77", spec["mpi"].mpif77)
 
         if spec.satisfies("+cuda"):
+            # rpb222 adds this to overcome build errors
+            env.set('NVCC_APPEND_FLAGS','-allow-unsupported-compiler')
             env.set("CUDA_HOME", spec["cuda"].prefix)
             env.set("CUDA_PATH", spec["cuda"].prefix)
             # In CUDA builds hypre currently doesn't handle flags correctly

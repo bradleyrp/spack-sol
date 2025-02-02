@@ -219,7 +219,23 @@ spack:
     - !compiled
       compiler: !cat [*intel, *arch]
       specs:
-      - &cuda cuda@12.6.2
+      - &cuda-intel cuda@12.6.2 +allow-unsupported-compilers
+      - &cuda124 cuda@12.4.1 +allow-unsupported-compilers
+      - !cat &hwloc 
+        - hwloc@2.11.1 
+          +cuda +pci +libxml2
+          cuda_arch=75,80,86,89
+        - !spec {depends: *cuda}
+    - !compiled
+      compiler: *gcc
+      arch: *arch
+      specs: 
+      - !cat
+        - &hwloc 
+          hwloc@2.11.1 
+          +cuda +pci +libxml2
+          cuda_arch=75,80,86,89
+        - !spec {depends: *cuda}
     # include microbenchmarks with the MPI build-s03-p02.yaml stage for quick testing
     - - !cat
         - osu-micro-benchmarks@7.4

@@ -37,7 +37,7 @@ spack:
   config:
     install_tree:
       root: /share/Apps/build/ice24v2/marianatrenchbuildsite
-    # staging
+    # staging. defer to TMPDIR which should be carefully selected
     build_stage:
     - $TMPDIR
   # specs in a superspec format, using list of lists

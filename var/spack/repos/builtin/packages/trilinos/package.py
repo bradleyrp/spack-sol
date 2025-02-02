@@ -409,7 +409,9 @@ class Trilinos(CMakePackage, CudaPackage, ROCmPackage):
 
     # External Kokkos
     depends_on("kokkos@4.4.01", when="@master: +kokkos")
-    depends_on("kokkos@4.3.01", when="@16.0.0 +kokkos")
+    # rpb222 updates kokkos due to build errors
+    # depends_on("kokkos@4.3.01", when="@16.0.0 +kokkos")
+    depends_on("kokkos@4.5.01", when="@16.0.0 +kokkos")
     depends_on("kokkos@4.2.01", when="@15.1.0:15.1.1 +kokkos")
     depends_on("kokkos@4.1.00", when="@14.4.0:15.0.0 +kokkos")
 
@@ -594,6 +596,8 @@ class Trilinos(CMakePackage, CudaPackage, ROCmPackage):
     def setup_build_environment(self, env):
         spec = self.spec
         if "+cuda" in spec and "+wrapper" in spec:
+            # rpb222 adjusts
+            env.set('NVCC_APPEND_FLAGS','-allow-unsupported-compiler')
             if "+mpi" in spec:
                 env.set("OMPI_CXX", spec["kokkos-nvcc-wrapper"].kokkos_cxx)
                 env.set("MPICH_CXX", spec["kokkos-nvcc-wrapper"].kokkos_cxx)

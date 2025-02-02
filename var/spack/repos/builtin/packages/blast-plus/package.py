@@ -157,7 +157,9 @@ class BlastPlus(AutotoolsPackage):
             config_args.append("--without-pcre")
 
         if spec.satisfies("+python"):
-            config_args.append("--with-python={0}".format(self.spec["python"].home))
+            # rpb222 overrides this because python 3.13 has no distutils but we have 3.11 on the nodes
+            # config_args.append("--with-python={0}".format(self.spec["python"].home))
+            config_args.append("--with-python=/usr/bin/")
         else:
             config_args.append("--without-python")
 

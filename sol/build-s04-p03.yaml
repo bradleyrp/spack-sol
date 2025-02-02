@@ -447,7 +447,7 @@ spack:
           - cairo@1.16.0 
           - +X +fc +ft +gobject +pdf +pic ~png +shared ~svg
           - !spec 
-            depends: 
+            depends: &python311 
               python@3.11.9
               +bz2 +crypt +ctypes +dbm ~debug +libxml2 +lzma ~nis
               ~optimizations +pic +pyexpat +pythoncmd +readline +shared +sqlite3 +ssl
@@ -840,25 +840,35 @@ spack:
         - !spec {depends: *superlu-dist}
       # petsc must be build on a node with libcuda.so, see
       #   https://github.com/spack/spack/issues/47163
-      - !cat &petsc 
-        - petsc@3.22.1
-        - ~X ~batch ~cgns ~complex +cuda ~debug +double ~exodusii +fftw +fortran
-          ~giflib +hdf5 ~hpddm +hwloc +hypre ~int64 ~jpeg ~knl ~kokkos ~libpng ~libyaml
-          ~memkind +metis ~mkl-pardiso ~mmg ~moab ~mpfr +mpi ~mumps +openmp ~p4est
-          ~parmmg ~ptscotch ~random123 ~rocm ~saws ~scalapack +shared ~strumpack
-          ~suite-sparse +superlu-dist ~sycl ~tetgen ~trilinos ~valgrind ~zoltan 
-        # removed trilinos due to error: 
-        #   Unable to generate list of Trilinos Libraries
-        - !spec {depends: *ompi5}
-        # - !spec {depends: *trilinos}
-        - !spec {depends: *hdf5}
-        - !spec {depends: *hypre}
-        - !spec {depends: *fftw}
-        - !spec {depends: *metis}
-        - !spec {depends: *parmetis}
-        - !spec {depends: *superlu-dist}
-        - !spec {depends: *python-hashpin}
+      # dev: at some point this has changed and broke
+      # - !cat &petsc 
+      #   - petsc@3.22.1
+      #   - ~X ~batch ~cgns ~complex +cuda ~debug +double ~exodusii +fftw +fortran
+      #     ~giflib +hdf5 ~hpddm +hwloc +hypre ~int64 ~jpeg ~knl ~kokkos ~libpng ~libyaml
+      #     ~memkind +metis ~mkl-pardiso ~mmg ~moab ~mpfr +mpi ~mumps +openmp ~p4est
+      #     ~parmmg ~ptscotch ~random123 ~rocm ~saws ~scalapack +shared ~strumpack
+      #     ~suite-sparse +superlu-dist ~sycl ~tetgen ~trilinos ~valgrind ~zoltan 
+      #   # removed trilinos due to error: 
+      #   #   Unable to generate list of Trilinos Libraries
+      #   - !spec {depends: *ompi5}
+      #   - !spec {depends: *hdf5}
+      #   - !spec {depends: *hypre}
+      #   - !spec {depends: *fftw}
+      #   - !spec {depends: *metis}
+      #   - !spec {depends: *parmetis}
+      #   - !spec {depends: *superlu-dist}
+      #   - !spec {depends: *python-hashpin}
   # wym219
+  # dev: abandoned this after the tree is too slow
+  #   note that we solved the problem of multiple python with lmod
+  #   but ml trinity took 5min. then we removed lots of extraneous packages
+  #   in the middle, for example bzip2, however we had to keep a rule
+  #   that says all r-* and py-* packages are available. this gets load times
+  #   down to 2min but this is still very very slow. so we abandon and retrench
+  #   note that trinity was an EXCELLENT stress test because it motivated these
+  #   two tactics that have massively improved hte software tree
+  # note that we keep this in place anyway
+  #   SEE below for the real wym219 packages
   - - - !cat
         - trinity@2.15.1.FULL
         # note that we use a strategic retreat here. after enormous struggle,
@@ -877,12 +887,13 @@ spack:
         #   just a small inefficient command from the maintainers of star/package.py 
         - !spec {depends: *r}
         - !spec {depends: *mkl-tbb}
-      # expose useful dependencies
-      - blast-plus@2.16.0 /v2wbwbr
-      - bowtie@1.3.1 /egsuhbt 
-      - bowtie2@2.5.2 /7s57hjl
-      - bamtools@2.5.2 /bf2jnv3
-      - salmon@1.10.3 /p3356xu
+      # # expose useful dependencies
+      # # note that we rolled this back in favor of the below
+      # - blast-plus@2.16.0 /v2wbwbr
+      # - bowtie@1.3.1 /egsuhbt 
+      # - bowtie2@2.5.2 /7s57hjl
+      # - bamtools@2.5.2 /bf2jnv3
+      # - salmon@1.10.3 /p3356xu
   # dar421
   - - - !cat
         - arrow@18.0.0
@@ -898,3 +909,54 @@ spack:
   - - - !cat
         - gdb@15.2 +debuginfod ~gold +ld ~lto +python ~quad +source-highlight +tui +xz 
         - !spec {depends: *boost}
+  # wym219
+  - - - !cat &blast-plus
+        - blast-plus
+          +bzip2 +freetype +gnutls +jpeg +lzo +openssl 
+          +pcre +perl +png ~python ~static +zlib
+          # note that blast-plus is not ready for new python and I tried and failed
+          #   to pin it against the system python 3.11
+      - bowtie2@2.5.2
+      - !cat
+        - hmmer@3.4 ~gsl +mpi
+        - !spec {depends: *ompi5}
+      - hyphy@2.5.51hf ~ipo
+      - !cat &iq-tree
+        - iq-tree@2.3.2
+          ~ipo +lsd2 +mpi +openmp
+        - !spec {depends: *ompi5}
+        - !spec {depends: *boost}
+      - mafft@7.525
+      - &mcl mcl@14-137 +blast
+      - !cat &mmseqs2
+        - &mmseqs2-base mmseqs2@15-6f452 ~ipo +mpi +openmp
+        - !spec {depends: *ompi5}
+      - nextflow@24.10.0
+      - paml@4.10.7
+      - phylip@3.697
+      - !cat
+        - raxml@8.2.12+mpi~pthreads
+        - !spec {depends: *ompi5}
+      - !cat
+        - salmon
+        - !spec {depends: *boost}
+      - !cat
+        - r-spades
+        - !spec {depends: *r}
+      - sratoolkit@3.0.0
+      - transdecoder@5.7.1
+      - vcftools@0.1.16
+      - &fasttree fasttree@2.1.11 +openmp
+      # failed to hashpin orthofinder to mmseqs2
+      - !cat
+        - orthofinder@2.5.5 
+          +blast +iqtree +mmseqs2 +muscle +raxml +raxml-ng
+        - !spec {depends: *fasttree}
+        - !spec {depends: *py-numpy}
+        - !spec {depends: *iq-tree}
+        - !spec {depends: *blast-plus}
+        - !spec {depends: *mcl}
+  # amr511, syk321
+  - - - !cat
+        - stacks@2.53 +sparsehash
+        - !spec {compiler: *gcc, arch: *arch}
