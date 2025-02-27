@@ -50,3 +50,7 @@ spack:
       - &intel intel-oneapi-compilers@2025.0.0
       - *arch 
       - !spec {compiler: *gcc_back}
+  # dev: tabled for now
+  # # bsf208 needs this
+  # - - !cat
+  #     - nvhpc@24.9
