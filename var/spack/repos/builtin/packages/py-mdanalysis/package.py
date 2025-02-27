@@ -20,6 +20,8 @@ class PyMdanalysis(PythonPackage):
 
     license("CC-BY-ND-3.0")
 
+    # rpb222 adds this for numpy 2 compatibility
+    version("2.8.0", sha256="0cf8efda7cb4a1cc33a92d2cd0d69a3d9b33c06c603df3c386caf6edccf46099")
     version("2.7.0", sha256="572e82945e5d058e3749ec5f18e6b3831ef7f2119cb54672567ae9a977201e93")
     version("2.6.1", sha256="9cc69b94bddd026f26ffcaf5bdbed6d568c1c10e19a341d84f8d37a2a70222f2")
     version("2.6.0", sha256="210b198a115165004c36fbbbe5eb83a13323f52b10ccaef30dd40bfe25ba3e61")
@@ -49,7 +51,8 @@ class PyMdanalysis(PythonPackage):
     depends_on("py-numpy@1.21.0:", when="@2.5.0:", type=("build", "run"))
     depends_on("py-numpy@1.20.0:", type=("build", "run"))
     # https://github.com/MDAnalysis/mdanalysis/pull/4482
-    depends_on("py-numpy@:1", type=("build", "run"))
+    # rpb222 relaxes this on 2.8 and above
+    depends_on("py-numpy@:1", type=("build", "run"), when="@:2.7.0")
 
     depends_on("py-griddataformats@0.4.0:", type=("build", "run"))
     depends_on("py-mmtf-python@1.0.0:", type=("build", "run"))
