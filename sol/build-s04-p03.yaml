@@ -231,6 +231,10 @@ spack:
           intel-oneapi-mkl threads=tbb: 'intel-oneapi-mkl/{version}-tbb'
           intel-oneapi-mkl threads=openmp: 'intel-oneapi-mkl/{version}'
           nccl ^cuda@12.4.1: 'nccl/{version}-cuda-12.4'
+          # GPU version for an alternative GROMACS
+          gromacs-chain-coordinate ^cuda: 'gromacs-chain-coordinate/{version}-cuda'
+          # two versions of stacks
+          stacks ^zlib-ng: 'stacks/{version}-zlib-ng'
         # patching in pmix for openmpi for some reason
         openmpi:
           environment:
@@ -302,6 +306,10 @@ spack:
       - miniconda3@24.7.1
       # miniforge allows us to avoid breaking the Continuum Inc and Anaconda TOS
       - miniforge3@24.3.0-0 +mamba
+      # GNU parallel
+      - parallel
+      # added on 2025.03.21
+      - bc
   # gcc openmpi
   - - !builder
       suffix: !spec {compiler: *gcc}
@@ -403,7 +411,7 @@ spack:
       - &parallel-netcdf parallel-netcdf@1.12.3 ~burstbuffer +cxx +fortran +pic +shared
       - &fftw !cat
         - fftw@3.3.10
-        - +mpi +openmp +pfft_patches +shared
+          +mpi +openmp +pfft_patches +shared
           precision=float,double
   # gcc python py-cython
   - - - &py-cython-hashpin !cat
@@ -594,6 +602,12 @@ spack:
       - &parallel-netcdf-intel !cat
         - parallel-netcdf@1.12.3 
         - ~burstbuffer +cxx +fortran +pic +shared
+      - &fftw-intel !cat
+        - fftw@3.3.10
+          +mpi +openmp +pfft_patches +shared
+          precision=float,double
+        - !spec {compiler: *intel, arch: *arch}
+        - !spec {depends: *impi}
   # gcc openmpi mkl cuda
   - - - !cat &gromacs23
         - &gmx-base gromacs@2023.3
@@ -845,6 +859,7 @@ spack:
       # petsc must be build on a node with libcuda.so, see
       #   https://github.com/spack/spack/issues/47163
       # dev: at some point this has changed and broke
+      # dev: see below for another attempt
       # - !cat &petsc 
       #   - petsc@3.22.1
       #   - ~X ~batch ~cgns ~complex +cuda ~debug +double ~exodusii +fftw +fortran
@@ -982,8 +997,10 @@ spack:
         - !spec {depends: *mcl}
   # amr511, syk321
   - - - !cat
-        - stacks@2.53 +sparsehash
+        # upgraded on 2025.03.31
+        - stacks@2.68 +sparsehash
         - !spec {compiler: *gcc, arch: *arch}
+        - !spec {depends: *zlib}
   # admin
   - - - !cat
         - stress@1.0.4
@@ -1046,3 +1063,123 @@ spack:
   - - - !cat
         - namd@2.14 ~cuda fftw=mkl
         - !spec {depends: *mkl-omp}
+  # namd with GPU for fls424
+  - - - !cat
+        - namd@3.0.1 
+          +single_node_gpu 
+          +cuda 
+          fftw=mkl 
+          interface=tcl
+          cuda_arch=75,80,86,89
+        - !spec {depends: *mkl-omp}
+        - !spec {depends: *cuda126-gcc}
+  - - - !cat
+        - gromacs-chain-coordinate@2021.5-0.31
+        - !spec {compiler: *gcc, arch: *arch}
+        - ~cp2k ~cuda ~cycle_subcounters ~double +gmxapi +hwloc ~intel_provided_gcc ~ipo ~mdrun_only
+        - +mpi +nblib ~nosuffix ~opencl +openmp ~plumed ~relaxed_double_precision +shared
+        - !spec {depends: *fftw}
+        - !spec {compiler: *gcc, arch: *arch}
+        - !spec {depends: *ompi5}
+  - - - !cat
+        - gromacs-chain-coordinate@2021.5-0.31
+        - !spec {compiler: *gcc, arch: *arch}
+        - ~cp2k +cuda ~cycle_subcounters ~double +gmxapi +hwloc ~intel_provided_gcc ~ipo ~mdrun_only
+          +mpi +nblib ~nosuffix ~opencl +openmp ~plumed ~relaxed_double_precision +shared
+          cuda_arch=75,80,86,89
+        - !spec {depends: *fftw}
+        - !spec {compiler: *gcc, arch: *arch}
+        - !spec {depends: *ompi5}
+        - !spec {depends: *cuda126-gcc}
+  #! # looking into seurat for jul724
+  #! - - - !cat
+  #!       - r-seurat
+  #!       - !spec {depends: *r}
+  # bed220
+  - - !compiled
+      compiler: *gcc
+      arch: *arch
+      specs:
+      - freebayes@1.3.9
+    - - !cat
+        - gatk@4.5.0.0 ~r
+        # - !spec {depends: *r}
+        - !spec {depends: *python-hashpin}
+  # dev: dar322 asked for this but it is too huge
+  # - - - !cat
+  #       - nf-core-tools@2.7.2
+  #       - !spec {compiler: *gcc, arch: *arch}
+  #       # - !spec {depends: *python-hashpin}
+  # zhl923
+  - - - !cat
+        - openfoam@2312
+        - !spec {depends: fftw@3.3.10 /vfbeqjo}
+        - !spec {depends: *boost}
+        # note that openfoam brings adios2 (an omitted dependency for certain kinds oftrilinos)
+        #   as well as scotch, flex, cgal
+      - !cat &petsc 
+        - petsc@3.22.1
+        - ~X ~batch ~cgns ~complex ~cuda ~debug +double ~exodusii +fftw +fortran
+          ~giflib +hdf5 ~hpddm +hwloc ~hypre ~int64 ~jpeg ~knl ~kokkos ~libpng ~libyaml
+          ~memkind ~metis ~mkl-pardiso ~mmg ~moab ~mpfr +mpi ~mumps +openmp ~p4est
+          ~parmmg ~ptscotch ~random123 ~rocm ~saws ~scalapack +shared ~strumpack
+          ~suite-sparse ~superlu-dist ~sycl ~tetgen ~trilinos ~valgrind ~zoltan 
+        # removed trilinos due to error: 
+        #   Unable to generate list of Trilinos Libraries
+        - !spec {depends: *ompi5}
+        - !spec {depends: *hdf5}
+        # - !spec {depends: *hypre}
+        - !spec {depends: *fftw}
+        # - !spec {depends: *metis}
+        # - !spec {depends: *parmetis}
+        # - !spec {depends: *superlu-dist}
+        - !spec {depends: *python-hashpin}
+  # support for quantum-espresso
+  - - - !cat &scalapack-intel
+        - netlib-scalapack@2.2.0 ~ipo ~pic +shared
+        - !spec {compiler: *intel, arch: *arch}
+        - !spec {depends: *impi21-pin}
+      - !cat &openblas-intel
+        - openblas@0.3.28 
+        - !spec {compiler: *intel, arch: *arch}
+        - ~bignuma ~consistent_fpcsr +fortran ~ilp64 +locking +pic +shared
+  # laf218 for quantum workshop etc
+  - - - !cat
+        - quantum-espresso@7.4 +epw +mpi ~openmp +patch ~qmcpack +scalapack 
+        - !spec {compiler: *intel, arch: *arch}
+        - !spec {depends: *impi21-pin}
+        - !spec {depends: *scalapack-intel}
+        - !spec {depends: *fftw-intel}
+        - !spec {depends: *openblas-intel}
+        - !spec {depends: *hdf5-intel}
+  # gcc openmpi mkl cuda
+  - - - !cat &gromacs23
+        - &gmx-base gromacs@2023.3
+        - !spec {compiler: *gcc, arch: *arch}
+        - &gmx-variants
+          ~cp2k
+          +cuda
+          ~cycle_subcounters
+          ~double
+          +gmxapi
+          +hwloc
+          ~intel_provided_gcc
+          ~ipo
+          ~mdrun_only
+          +mpi
+          +nblib
+          ~nosuffix
+          ~opencl
+          +openmp
+          ~relaxed_double_precision
+          +shared build_system=cmake 
+          build_type=Release 
+          generator=make 
+          openmp_max_threads=none
+          cuda_arch=75,80,86,89
+        # note that gromacs recommends fftw for performance over
+        #   MKL and anyway you need this for cuda features
+        - !spec {depends: *fftw}
+        - !spec {compiler: *gcc, arch: *arch}
+        - !spec {depends: *ompi5}
+        - !spec {depends: *cuda126-gcc}

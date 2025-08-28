@@ -1,11 +1,12 @@
-# Copyright 2013-2024 Lawrence Livermore National Security, LLC and other
-# Spack Project Developers. See the top-level COPYRIGHT file for details.
+# Copyright Spack Project Developers. See COPYRIGHT file for details.
 #
 # SPDX-License-Identifier: (Apache-2.0 OR MIT)
 
 import os
 
-import llnl.util.filesystem as fs
+from spack_repo.builtin.build_systems import cmake
+from spack_repo.builtin.build_systems.cmake import CMakePackage
+from spack_repo.builtin.build_systems.cuda import CudaPackage
 
 from spack.package import *
 
@@ -26,73 +27,112 @@ class Gromacs(CMakePackage, CudaPackage):
     url = "https://ftp.gromacs.org/gromacs/gromacs-2022.2.tar.gz"
     list_url = "https://ftp.gromacs.org/gromacs"
     git = "https://gitlab.com/gromacs/gromacs.git"
+
     maintainers("mabraham", "eirrgang", "junghans")
 
     license("GPL-2.0-or-later", when="@:4.5")
     license("LGPL-2.1-or-later", when="@4.6:")
 
+    # Deprecation policy:
+    #
+    # GROMACS makes an annual major release and supports it with fixes
+    # in minor updates for about two years. Each such annual release
+    # series is supported in spack for those two years, then marked as
+    # deprecated in Spack. Deprecated versions can be removed after
+    # the next major release of GROMACS is supported in Spack. Users
+    # needing such an old version can either do a manual installation
+    # or get an older version of Spack.
+    #
+    # Exception: Version 2019.6 is the last version capable of tabulated
+    # interactions used in the so-called "group scheme." It will be marked
+    # as deprecated only after equivalent functionality is available in
+    # a major release of GROMACS, then removed as above.
+    #
+    # Exception: Otherwise, versions before 2022 will be removed when
+    # 2025 is supported.
     version("main", branch="main")
     version("master", branch="main", deprecated=True)
+    version("2025.2", sha256="0df09f9d45a99ef00e66b9baa9493a27e906813763a3b6c7672217c66b43ea11")
+    version("2025.1", sha256="0adf621a80fd8043f8defec84ce02811c0cdf42a052232890932d81f25c4d28a")
+    version("2025.0", sha256="a27ad35a646295bbec129abe684d9d03d1e2e0bd76b0d625e9055746aaefae82")
+    version("2024.5", sha256="fecf06b186cddb942cfb42ee8da5f3eb2b9993e6acc0a2f18d14ac0b014424f3")
+    version("2024.4", sha256="ac618ece2e58afa86b536c5a2c4fcb937f0760318f12d18f10346b6bdebd86a8")
     version("2024.3", sha256="bbda056ee59390be7d58d84c13a9ec0d4e3635617adf2eb747034922cba1f029")
     version("2024.2", sha256="802a7e335f2e895770f57b159e4ec368ebb0ff2ce6daccf706c6e8025c36852b")
     version("2024.1", sha256="937d8f12a36fffbf2af7add71adbb5aa5c5537892d46c9a76afbecab1aa0aac7")
     version("2024", sha256="04d226d52066a8bc3a42e00d6213de737b4ec292e26703065924ff01956801e2")
-    version("2023.5", sha256="9cc491d3601a5fe0ec0de727e4432c34877f596fe8a463d4cf0f0f53fb34d08b")
-    version("2023.4", sha256="e5d6c4d9e7ccacfaccb0888619bd21b5ea8911f82b410e68d6db5d40f695f231")
-    version("2023.3", sha256="4ec8f8d0c7af76b13f8fd16db8e2c120e749de439ae9554d9f653f812d78d1cb")
-    version("2023.2", sha256="bce1480727e4b2bb900413b75d99a3266f3507877da4f5b2d491df798f9fcdae")
-    version("2023.1", sha256="eef2bb4a6cb6314cf9da47f26df2a0d27af4bf7b3099723d43601073ab0a42f4")
-    version("2023", sha256="ac92c6da72fbbcca414fd8a8d979e56ecf17c4c1cdabed2da5cfb4e7277b7ba8")
-    version("2022.6", sha256="75d277138475679dd3e334e384a71516570cde767310476687f2a5b72333ea41")
-    version("2022.5", sha256="083cc3c424bb93ffe86c12f952e3e5b4e6c9f6520de5338761f24b75e018c223")
-    version("2022.4", sha256="c511be602ff29402065b50906841def98752639b92a95f1b0a1060d9b5e27297")
-    version("2022.3", sha256="14cfb130ddaf8f759a3af643c04f5a0d0d32b09bc3448b16afa5b617f5e35dae")
-    version("2022.2", sha256="656404f884d2fa2244c97d2a5b92af148d0dbea94ad13004724b3fcbf45e01bf")
-    version("2022.1", sha256="85ddab5197d79524a702c4959c2c43be875e0fc471df3a35224939dce8512450")
-    version("2022", sha256="fad60d606c02e6164018692c6c9f2c159a9130c2bf32e8c5f4f1b6ba2dda2b68")
-    version("2021.7", sha256="4db7bbbfe5424de48373686ec0e8c5bfa7175d5cd74290ef1c1e840e6df67f06")
-    version("2021.6", sha256="52df2c1d7586fd028d9397985c68bd6dd26e6e905ead382b7e6c473d087902c3")
-    version("2021.5", sha256="eba63fe6106812f72711ef7f76447b12dd1ee6c81b3d8d4d0e3098cd9ea009b6")
-    version("2021.4", sha256="cb708a3e3e83abef5ba475fdb62ef8d42ce8868d68f52dafdb6702dc9742ba1d")
-    version("2021.3", sha256="e109856ec444768dfbde41f3059e3123abdb8fe56ca33b1a83f31ed4575a1cc6")
-    version("2021.2", sha256="d940d865ea91e78318043e71f229ce80d32b0dc578d64ee5aa2b1a4be801aadb")
-    version("2021.1", sha256="bc1d0a75c134e1fb003202262fe10d3d32c59bbb40d714bc3e5015c71effe1e5")
-    version("2021", sha256="efa78ab8409b0f5bf0fbca174fb8fbcf012815326b5c71a9d7c385cde9a8f87b")
-    version("2020.7", sha256="744158d8f61b0d36ffe89ec934519b7e0981a7af438897740160da648d36c2f0")
-    version("2020.6", sha256="d8bbe57ed3c9925a8cb99ecfe39e217f930bed47d5268a9e42b33da544bdb2ee")
-    version("2020.5", sha256="7b6aff647f7c8ee1bf12204d02cef7c55f44402a73195bd5f42cf11850616478")
-    version("2020.4", sha256="5519690321b5500c7951aaf53ff624042c3edd1a5f5d6dd1f2d802a3ecdbf4e6")
-    version("2020.3", sha256="903183691132db14e55b011305db4b6f4901cc4912d2c56c131edfef18cc92a9")
-    version("2020.2", sha256="7465e4cd616359d84489d919ec9e4b1aaf51f0a4296e693c249e83411b7bd2f3")
-    version("2020.1", sha256="e1666558831a3951c02b81000842223698016922806a8ce152e8f616e29899cf")
-    version("2020", sha256="477e56142b3dcd9cb61b8f67b24a55760b04d1655e8684f979a75a5eec40ba01")
+    version(
+        "2023.5",
+        sha256="9cc491d3601a5fe0ec0de727e4432c34877f596fe8a463d4cf0f0f53fb34d08b",
+        deprecated=True,
+    )
+    version(
+        "2023.4",
+        sha256="e5d6c4d9e7ccacfaccb0888619bd21b5ea8911f82b410e68d6db5d40f695f231",
+        deprecated=True,
+    )
+    version(
+        "2023.3",
+        sha256="4ec8f8d0c7af76b13f8fd16db8e2c120e749de439ae9554d9f653f812d78d1cb",
+        deprecated=True,
+    )
+    version(
+        "2023.2",
+        sha256="bce1480727e4b2bb900413b75d99a3266f3507877da4f5b2d491df798f9fcdae",
+        deprecated=True,
+    )
+    version(
+        "2023.1",
+        sha256="eef2bb4a6cb6314cf9da47f26df2a0d27af4bf7b3099723d43601073ab0a42f4",
+        deprecated=True,
+    )
+    version(
+        "2023",
+        sha256="ac92c6da72fbbcca414fd8a8d979e56ecf17c4c1cdabed2da5cfb4e7277b7ba8",
+        deprecated=True,
+    )
+    version(
+        "2022.6",
+        sha256="75d277138475679dd3e334e384a71516570cde767310476687f2a5b72333ea41",
+        deprecated=True,
+    )
+    version(
+        "2022.5",
+        sha256="083cc3c424bb93ffe86c12f952e3e5b4e6c9f6520de5338761f24b75e018c223",
+        deprecated=True,
+    )
+    version(
+        "2022.4",
+        sha256="c511be602ff29402065b50906841def98752639b92a95f1b0a1060d9b5e27297",
+        deprecated=True,
+    )
+    version(
+        "2022.3",
+        sha256="14cfb130ddaf8f759a3af643c04f5a0d0d32b09bc3448b16afa5b617f5e35dae",
+        deprecated=True,
+    )
+    version(
+        "2022.2",
+        sha256="656404f884d2fa2244c97d2a5b92af148d0dbea94ad13004724b3fcbf45e01bf",
+        deprecated=True,
+    )
+    version(
+        "2022.1",
+        sha256="85ddab5197d79524a702c4959c2c43be875e0fc471df3a35224939dce8512450",
+        deprecated=True,
+    )
+    version(
+        "2022",
+        sha256="fad60d606c02e6164018692c6c9f2c159a9130c2bf32e8c5f4f1b6ba2dda2b68",
+        deprecated=True,
+    )
+    # See exception documented above
     version("2019.6", sha256="bebe396dc0db11a9d4cc205abc13b50d88225617642508168a2195324f06a358")
-    version("2019.5", sha256="438061a4a2d45bbb5cf5c3aadd6c6df32d2d77ce8c715f1c8ffe56156994083a")
-    version("2019.4", sha256="ba4366eedfc8a1dbf6bddcef190be8cd75de53691133f305a7f9c296e5ca1867")
-    version("2019.3", sha256="4211a598bf3b7aca2b14ad991448947da9032566f13239b1a05a2d4824357573")
-    version("2019.2", sha256="bcbf5cc071926bc67baa5be6fb04f0986a2b107e1573e15fadcb7d7fc4fb9f7e")
-    version("2019.1", sha256="b2c37ed2fcd0e64c4efcabdc8ee581143986527192e6e647a197c76d9c4583ec")
-    version("2019", sha256="c5b281a5f0b5b4eeb1f4c7d4dc72f96985b566561ca28acc9c7c16f6ee110d0b")
-    version("2018.8", sha256="776923415df4bc78869d7f387c834141fdcda930b2e75be979dc59ecfa6ebecf")
-    version("2018.5", sha256="32261df6f7ec4149fc0508f9af416953d056e281590359838c1ed6644ba097b8")
-    version("2018.4", sha256="6f2ee458c730994a8549d6b4f601ecfc9432731462f8bd4ffa35d330d9aaa891")
-    version("2018.3", sha256="4423a49224972969c52af7b1f151579cea6ab52148d8d7cbae28c183520aa291")
-    version("2018.2", sha256="4bdde8120c510b6543afb4b18f82551fddb11851f7edbd814aa24022c5d37857")
-    version("2018.1", sha256="4d3533340499323fece83b4a2d4251fa856376f2426c541e00b8e6b4c0d705cd")
-    version("2018", sha256="deb5d0b749a52a0c6083367b5f50a99e08003208d81954fb49e7009e1b1fd0e9")
-    version("2016.6", sha256="bac0117d2cad21f9b94fe5b854fb9ae7435b098a6da4e732ee745f18e52473d7")
-    version("2016.5", sha256="57db26c6d9af84710a1e0c47a1f5bf63a22641456448dcd2eeb556ebd14e0b7c")
-    version("2016.4", sha256="4be9d3bfda0bdf3b5c53041e0b8344f7d22b75128759d9bfa9442fe65c289264")
-    version("2016.3", sha256="7bf00e74a9d38b7cef9356141d20e4ba9387289cbbfd4d11be479ef932d77d27")
-    version("5.1.5", sha256="c25266abf07690ecad16ed3996899b1d489cbb1ef733a1befb3b5c75c91a703e")
-    version("5.1.4", sha256="0f3793d8f1f0be747cf9ebb0b588fb2b2b5dc5acc32c3046a7bee2d2c03437bc")
-    version("5.1.2", sha256="39d6f1d7ae8ba38cea6089da40676bfa4049a49903d21551abc030992a58f304")
-    version("4.6.7", sha256="6afb1837e363192043de34b188ca3cf83db6bd189601f2001a1fc5b0b2a214d9")
-    version("4.5.5", sha256="e0605e4810b0d552a8761fef5540c545beeaf85893f4a6e21df9905a33f871ba")
 
-    depends_on("c", type="build")  # generated
-    depends_on("cxx", type="build")  # generated
-    depends_on("fortran", type="build")  # generated
+    depends_on("c", type="build")
+    depends_on("cxx", type="build")
+    depends_on("fortran", type="build", when="@:4.5.5")  # No core Fortran code since 4.6
+    depends_on("fortran", type="build", when="+cp2k")  # Need Fortan compiler for CP2K
 
     variant(
         "mpi", default=True, description="Activate MPI support (disable for Thread-MPI support)"
@@ -112,11 +152,22 @@ class Gromacs(CMakePackage, CudaPackage):
     variant(
         "heffte",
         default=False,
-        when="@2021: +sycl+mpi",
+        when="@2021: +mpi",
         description="Enable multi-GPU FFT support with HeFFTe",
     )
+    depends_on("heffte +cuda", when="+heffte +cuda")
+    depends_on("heffte +sycl", when="+heffte +sycl")
     variant("opencl", default=False, description="Enable OpenCL support")
-    variant("sycl", default=False, when="@2021: %clang", description="Enable SYCL support")
+    variant("sycl", default=False, when="@2021:", description="Enable SYCL support")
+    requires(
+        "^intel-oneapi-runtime",
+        "^hipsycl %clang",
+        policy="one_of",
+        when="+sycl",
+        msg="GROMACS SYCL support comes either from intel-oneapi-runtime or a "
+        + "package that provides the virtual package `sycl`, such as AdaptiveCpp "
+        + "plus a clang compiler.",
+    )
     variant(
         "intel-data-center-gpu-max",
         default=False,
@@ -175,6 +226,19 @@ class Gromacs(CMakePackage, CudaPackage):
     )
 
     variant("openmp", default=True, description="Enables OpenMP at configure time")
+
+    # When using apple-clang version 15.x or newer, need to use the llvm-openmp library
+    # We also protect with version 2025+ as there seems to be a CMake bug with
+    # Apple Clang and OpenMP that is fixed in 2025
+    depends_on("llvm-openmp", when="@2025: +openmp %apple-clang@15:", type=("build", "run"))
+
+    # But we need to block +openmp %apple-clang for GROMACS older than 2025
+    conflicts(
+        "+openmp",
+        when="@:2024 %apple-clang",
+        msg="OpenMP not available for the Apple clang compiler",
+    )
+
     variant("openmp_max_threads", default="none", description="Max number of OpenMP threads")
     conflicts(
         "+openmp_max_threads", when="~openmp", msg="OpenMP is off but OpenMP Max threads is set"
@@ -249,12 +313,10 @@ class Gromacs(CMakePackage, CudaPackage):
     # and switching tags.
 
     # Versions without minor release number, such as `2023` and `2021`,
-    # require exact specifcation using `@=`, starting from Spack v0.20.0,
+    # require exact specification using `@=`, starting from Spack v0.20.0,
     # see https://github.com/spack/spack/releases/tag/v0.20.0
 
     plumed_patches = {
-        # rpb222 adds this version per plumed github page
-        "2024.2": "2.9.2",
         "=2023": "2.9.1",
         "2022.5": "2.8.2:2.9.1",
         "2022.3": "2.8.1",
@@ -293,9 +355,18 @@ class Gromacs(CMakePackage, CudaPackage):
     variant(
         "intel_provided_gcc",
         default=False,
-        description="Use this if Intel compiler is installed through spack."
+        description="Use this if Intel compiler is installed through spack. "
         + "The g++ location is written to icp{c,x}.cfg",
     )
+
+    variant(
+        "itt",
+        default=False,
+        when="@2024:",
+        description="Enable Instrumentation and Tracing Technology (ITT)"
+        + " profiling API (from Intel)",
+    )
+    depends_on("intel-oneapi-vtune", "+itt")
 
     depends_on("fftw-api@3")
     depends_on("cmake@2.8.8:3", type="build")
@@ -303,7 +374,8 @@ class Gromacs(CMakePackage, CudaPackage):
     depends_on("cmake@3.9.6:3", type="build", when="@2020")
     depends_on("cmake@3.13.0:3", type="build", when="@2021")
     depends_on("cmake@3.16.3:3", type="build", when="@2022:")
-    depends_on("cmake@3.18.4:3", type="build", when="@main")
+    depends_on("cmake@3.28.0:3", type="build", when="@2025:")
+    depends_on("cmake@3.28.0:3", type="build", when="@main")
     depends_on("cmake@3.16.0:3", type="build", when="%fj")
     depends_on("pkgconfig", type="build")
 
@@ -311,8 +383,14 @@ class Gromacs(CMakePackage, CudaPackage):
     depends_on("sycl", when="+sycl")
     depends_on("lapack")
     depends_on("blas")
-    depends_on("gcc", when="%oneapi ~intel_provided_gcc")
-    depends_on("gcc", when="%intel ~intel_provided_gcc")
+    depends_on("gcc", when="~intel_provided_gcc %intel")
+    # TODO this can be expanded to all clang-based compilers once
+    # the principle is demonstrated to work
+    with when("~intel_provided_gcc %oneapi"):
+        depends_on("gcc-runtime@5:", when="@2020")
+        depends_on("gcc-runtime@7:", when="@2021:2022")
+        depends_on("gcc-runtime@9:", when="@2023:2024")
+        depends_on("gcc-runtime@11:", when="@2025:")
 
     depends_on("hwloc@1.0:1", when="+hwloc@2016:2018")
     depends_on("hwloc", when="+hwloc@2019:")
@@ -332,9 +410,8 @@ class Gromacs(CMakePackage, CudaPackage):
     )
 
     # If the Intel suite is used for Lapack, it must be used for fftw and vice-versa
-    for _intel_pkg in INTEL_MATH_LIBRARIES:
-        requires(f"^[virtuals=fftw-api] {_intel_pkg}", when=f"^[virtuals=lapack]   {_intel_pkg}")
-        requires(f"^[virtuals=lapack]   {_intel_pkg}", when=f"^[virtuals=fftw-api] {_intel_pkg}")
+    requires("^[virtuals=fftw-api] intel-oneapi-mkl", when="^[virtuals=lapack] intel-oneapi-mkl")
+    requires("^[virtuals=lapack] intel-oneapi-mkl", when="^[virtuals=fftw-api] intel-oneapi-mkl")
 
     patch("gmxDetectCpu-cmake-3.14.patch", when="@2018:2019.3^cmake@3.14.0:")
     patch("gmxDetectSimd-cmake-3.14.patch", when="@5.0:2017^cmake@3.14.0:")
@@ -387,7 +464,7 @@ class Gromacs(CMakePackage, CudaPackage):
             )
 
         if self.spec.satisfies("+plumed"):
-            self.spec["plumed"].package.apply_patch(self)
+            self["plumed"].apply_patch(self)
 
         if self.spec.satisfies("%nvhpc"):
             # Disable obsolete workaround
@@ -429,7 +506,7 @@ class Gromacs(CMakePackage, CudaPackage):
                     r"-gencode;arch=compute_20,code=sm_21;?", "", "cmake/gmxManageNvccConfig.cmake"
                 )
 
-    def setup_run_environment(self, env):
+    def setup_run_environment(self, env: EnvironmentModifications) -> None:
         if self.spec.satisfies("+cufftmp"):
             env.append_path(
                 "LD_LIBRARY_PATH",
@@ -444,7 +521,7 @@ class Gromacs(CMakePackage, CudaPackage):
             )
 
 
-class CMakeBuilder(spack.build_systems.cmake.CMakeBuilder):
+class CMakeBuilder(cmake.CMakeBuilder):
     @run_after("build")
     def build_test_binaries(self):
         """Build the test binaries.
@@ -462,7 +539,7 @@ class CMakeBuilder(spack.build_systems.cmake.CMakeBuilder):
         not be intended with ``--test``.
         """
         if self.pkg.run_tests:
-            with fs.working_dir(self.build_directory):
+            with working_dir(self.build_directory):
                 make("tests")
 
     def check(self):
@@ -471,7 +548,7 @@ class CMakeBuilder(spack.build_systems.cmake.CMakeBuilder):
         Override the standard CMakeBuilder behavior. GROMACS has both `test`
         and `check` targets, but we are only interested in the latter.
         """
-        with fs.working_dir(self.build_directory):
+        with working_dir(self.build_directory):
             if self.generator == "Unix Makefiles":
                 make("check")
             elif self.generator == "Ninja":
@@ -541,7 +618,7 @@ class CMakeBuilder(spack.build_systems.cmake.CMakeBuilder):
             ):
                 with open(".".join([os.environ["SPACK_CXX"], "cfg"]), "r") as f:
                     options.append("-DCMAKE_CXX_FLAGS={}".format(f.read()))
-            else:
+            elif self.spec["cxx"].name == "gcc":
                 options.append("-DGMX_GPLUSPLUS_PATH=%s/g++" % self.spec["gcc"].prefix.bin)
 
         if self.spec.satisfies("+double"):
@@ -597,17 +674,24 @@ class CMakeBuilder(spack.build_systems.cmake.CMakeBuilder):
         if self.spec.satisfies("+cufftmp"):
             options.append("-DGMX_USE_CUFFTMP=ON")
             options.append(
-                f'-DcuFFTMp_ROOT={self.spec["nvhpc"].prefix}/Linux_{self.spec.target.family}'
-                + f'/{self.spec["nvhpc"].version}/math_libs'
+                f"-DcuFFTMp_ROOT={self.spec['nvhpc'].prefix}/Linux_{self.spec.target.family}"
+                + f"/{self.spec['nvhpc'].version}/math_libs"
             )
 
         if self.spec.satisfies("+heffte"):
             options.append("-DGMX_USE_HEFFTE=on")
-            options.append(f'-DHeffte_ROOT={self.spec["heffte"].prefix}')
+            options.append(f"-DHeffte_ROOT={self.spec['heffte'].prefix}")
 
         if self.spec.satisfies("+intel-data-center-gpu-max"):
             options.append("-DGMX_GPU_NB_CLUSTER_SIZE=8")
             options.append("-DGMX_GPU_NB_NUM_CLUSTER_PER_CELL_X=1")
+
+        if "+itt" in self.spec:
+            options.append("-DGMX_USE_ITT=on")
+            options.append(
+                "-DITTNOTIFY_INCLUDE_DIR=%s"
+                % self.spec["intel-oneapi-vtune"].package.headers.directories[0]
+            )
 
         if self.spec.satisfies("~nblib"):
             options.append("-DGMX_INSTALL_NBLIB_API=OFF")
@@ -707,9 +791,8 @@ class CMakeBuilder(spack.build_systems.cmake.CMakeBuilder):
             )
             options.append(f"-DNVSHMEM_ROOT={nvshmem_root}")
 
-        if self.spec["lapack"].name in INTEL_MATH_LIBRARIES:
-            # fftw-api@3 is provided by intel-mkl or intel-parllel-studio
-            # we use the mkl interface of gromacs
+        if self.spec.satisfies("^[virtuals=lapack] intel-oneapi-mkl"):
+            # fftw-api@3 is provided by intel-oneapi-mkl
             options.append("-DGMX_FFT_LIBRARY=mkl")
             if self.spec.satisfies("@:2022"):
                 options.append(
@@ -750,7 +833,7 @@ class CMakeBuilder(spack.build_systems.cmake.CMakeBuilder):
             options.append("-DGMX_VERSION_STRING_OF_FORK=spack")
         return options
 
-    def setup_build_environment(self, env):
+    def setup_build_environment(self, env: EnvironmentModifications) -> None:
         if self.spec.satisfies("+cufftmp"):
             env.append_path(
                 "LD_LIBRARY_PATH",

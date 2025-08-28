@@ -194,7 +194,7 @@ spack:
           py-wheel ^python: *py-pro
           py-pybind11 ^python: *py-pro
           # NAMD has a GPU version
-          namd +cuda: 'namd-gpu/{version}'
+          namd +cuda: 'namd/{version}-gpu'
           all: '{name}/{version}'
           # MKL has TBB versions
           intel-oneapi-mkl threads=tbb: 'intel-oneapi-mkl/{version}-tbb'
@@ -526,3 +526,13 @@ spack:
       #!   - !spec {depends: *parmetis-intel}
       #!   - !spec {depends: *superlu-dist-hashpin}
       #!   - !spec {depends: *python-intel}
+  # namd with GPU for fls424
+  - - - !cat
+        - namd@3.0.1 
+          +single_node_gpu 
+          +cuda 
+          fftw=mkl 
+          interface=tcl
+          cuda_arch=75,80,86,89
+        - !spec {depends: *mkl-omp}
+        - !spec {depends: *cuda126-gcc}

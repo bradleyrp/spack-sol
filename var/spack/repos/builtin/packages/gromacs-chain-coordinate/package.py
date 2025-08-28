@@ -21,6 +21,13 @@ class GromacsChainCoordinate(Gromacs):
 
     version("main", branch="main")
 
+    # rpb222 gets the very latest
+    version(
+        "2021.5-0.31",
+        sha256="3465fb54a39a451f3befe9422ce909580f8c8ee9a8bef9ac8fb33cb1b96c81c7",
+        url="https://gitlab.com/cbjh/gromacs-chain-coordinate/-/archive/release-2021.chaincoord-0.3.1/gromacs-chain-coordinate-release-2021.chaincoord-0.3.1.tar.bz2",
+    )
+
     version(
         "2021.5-0.3",
         sha256="64ec5f385445ae43dfec8c27198034c0ba641863ab856c8c29798a4c83016baa",
