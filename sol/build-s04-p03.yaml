@@ -360,6 +360,8 @@ spack:
       - !spec {depends: libpng, compiler: *gcc}
       # PAUSE here to get the libxcb hashpin
       #   see https://github.com/spack/spack/issues/44289
+      #   updated this on 2025.08.28 because it appeared to switch
+      #   from /rev5xta to /qcxv6vd
       - !spec {depends: &libxcb-hashpin 'libxcb@1.17.0 /rev5xta'}
       specs:
       # note that this produces a hashpin for python below
@@ -780,6 +782,16 @@ spack:
         - !spec {depends: *ompi5}
         - !spec {depends: *cuda126-gcc}
         - !spec {depends: *plumed}
+      - !cat
+        - &gromacs25-base gromacs@2025.2
+        - !spec {compiler: *gcc, arch: *arch}
+        - *gromacs-2025-variants 
+        # note that gromacs recommends fftw for performance over
+        #   MKL and anyway you need this for cuda features
+        - !spec {depends: *fftw}
+        - !spec {compiler: *gcc, arch: *arch}
+        - !spec {depends: *ompi5}
+        - !spec {depends: *cuda126-gcc}
   # gcc openmpi middleware
   # for ada823
   - - - !cat
