@@ -34,7 +34,9 @@ class Gromacs(CMakePackage, CudaPackage):
     version("main", branch="main")
     version("master", branch="main", deprecated=True)
     # added by rpb222
+    version("2025.3", sha256="8bdfca0268f3f10a7ca3c06e59b62f73ea02420c67211c0ff3912f32d7833c65")
     version("2025.2", sha256="0df09f9d45a99ef00e66b9baa9493a27e906813763a3b6c7672217c66b43ea11")
+
     version("2024.3", sha256="bbda056ee59390be7d58d84c13a9ec0d4e3635617adf2eb747034922cba1f029")
     version("2024.2", sha256="802a7e335f2e895770f57b159e4ec368ebb0ff2ce6daccf706c6e8025c36852b")
     version("2024.1", sha256="937d8f12a36fffbf2af7add71adbb5aa5c5537892d46c9a76afbecab1aa0aac7")
