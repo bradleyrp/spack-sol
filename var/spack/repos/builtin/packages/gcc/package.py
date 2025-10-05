@@ -39,6 +39,9 @@ class Gcc(AutotoolsPackage, GNUMirrorPackage, CompilerPackage):
 
     version("master", branch="master")
 
+    # added by rpb222
+    version("14.3.0", sha256="e0dc77297625631ac8e50fa92fffefe899a4eb702592da5c32ef04e2293aca3a")
+
     version("14.2.0", sha256="a7b39bc69cbf9e25826c5a60ab26477001f7c08d85cec04bc0e29cabed6f3cc9")
     version("14.1.0", sha256="e283c654987afe3de9d8080bc0bd79534b5ca0d681a73a11ff2b5d3767426840")
 
