@@ -1,0 +1,286 @@
+spack:
+  # CUSTOM MODULES
+  # these modifications blacklist the system compiler to make Core packages
+  # this streamlines the lmod tree that we expose to the users
+  # dev: could have sworn you could not set this, but now it is required or else
+  #   we have collisions
+  view: false
+  concretizer: 
+    unify: false
+    reuse: false
+  # CONFIG
+  config:
+    # pack the install root with the superspec
+    install_tree:
+      root: /share/Apps/build/zen25v1/marianatrenchbuildsite
+    build_stage:
+    - $TMPDIR
+  # EXTERNAL packages
+  packages:
+    slurm:
+      buildable: false
+      externals:
+      - spec: slurm@23.02.8 
+        prefix: /usr/local/slurm
+    hcoll:
+      buildable: false
+      externals:
+      - spec: hcoll@4.8.3230
+        prefix: /opt/mellanox/hcoll
+    gcc:  
+      buildable: false
+      externals:
+      # note that this is the detected gcc@14.3.0%gcc@14.2.1
+      - spec: &gcc1430-explicit gcc@14.3.0%gcc@14.2.1+binutils+bootstrap~graphite~mold~nvptx~piclibs~profiled~strip build_system=autotools build_type=RelWithDebInfo languages='c,c++,fortran' arch=linux-almalinux9-zen5
+        prefix: &gcc14_prefix /share/Apps/zen25v1/gcc-14.2.1/gcc-14.3.0-4oya5ksqaeq3z55tnwwt5srdzkzs6xbk
+        extra_attributes:
+          compilers:
+            c: /share/Apps/zen25v1/gcc-14.2.1/gcc-14.3.0-4oya5ksqaeq3z55tnwwt5srdzkzs6xbk/bin/gcc
+            cxx: /share/Apps/zen25v1/gcc-14.2.1/gcc-14.3.0-4oya5ksqaeq3z55tnwwt5srdzkzs6xbk/bin/g++
+            fortran: /share/Apps/zen25v1/gcc-14.2.1/gcc-14.3.0-4oya5ksqaeq3z55tnwwt5srdzkzs6xbk/bin/gfortran
+      - spec: gcc@14.2.1 arch=linux-almalinux9-zen5
+        prefix: /opt/rh/gcc-toolset-14/root/usr/
+        extra_attributes:
+          compilers:
+            c: /opt/rh/gcc-toolset-14/root/usr/bin/gcc
+            cxx: /opt/rh/gcc-toolset-14/root/usr/bin/g++
+            fortran: /opt/rh/gcc-toolset-14/root/usr/bin/gfortran
+    cuda:
+      buildable: false
+      externals:
+      - spec: &cuda129-gcc cuda@12.9.0%gcc@14.3.0+allow-unsupported-compilers~dev build_system=generic arch=linux-almalinux9-zen5 
+        prefix: /share/Apps/zen25v1/gcc-14.3.0/cuda-12.9.0-cr2yy3ddvvgi55qaaufytujzd5ekystg
+    hwloc:
+      buildable: false
+      externals:
+      - spec: hwloc@2.11.1%gcc@14.3.0~cairo+cuda~gl~libudev+libxml2~nvml~oneapi-level-zero~opencl+pci~rocm build_system=autotools cuda_arch=75,80,86,89,90,90a libs=shared,static arch=linux-almalinux9-zen5
+        prefix: /share/Apps/zen25v1/gcc-14.3.0/hwloc-2.11.1-vmjpcvunvrgllsopo5mvrbpi3xpvuykc
+    libevent:
+      buildable: false
+      externals:
+      - spec: libevent@2.1.12%gcc@14.3.0+openssl build_system=autotools arch=linux-almalinux9-zen5
+        prefix: /share/Apps/zen25v1/gcc-14.3.0/libevent-2.1.12-q34mv3yhjbp6tikje4f32vdtgomslja
+    openmpi:
+      buildable: false
+      externals:
+      - spec: &ompi5-pin openmpi@5.0.5%gcc@14.3.0+atomics+cuda~debug~gpfs~internal-hwloc~internal-libevent~internal-pmix~java~lustre~memchecker+openshmem+romio+rsh~static~two_level_namespace+vt+wrapper-rpath build_system=autotools cuda_arch=75,80,86,89,90,90a fabrics=cma,hcoll,knem,ucx,xpmem romio-filesystem=none schedulers=slurm arch=linux-almalinux9-zen5 
+        prefix: /share/Apps/zen25v1/gcc-14.3.0/openmpi-5.0.5-fmplqdp24tb55l77r7kjsiwv7c4b766p
+    ucx:
+      buildable: false
+      externals:
+      - spec: ucx@1.18.0%gcc@14.3.0~assertions~backtrace_detail+cma+cuda+dc~debug+dm+examples+gdrcopy~gtest+ib_hw_tm~java+knem~logging+mlx5_dv+openmp+optimizations~parameter_checking+pic+rc+rdmacm~rocm+thread_multiple~ucg+ud+verbs~vfs+xpmem build_system=autotools cuda_arch=75,80,86,89,90,90a libs=shared,static opt=3 simd=auto arch=linux-almalinux9-zen5
+        prefix: /share/Apps/zen25v1/gcc-14.3.0/ucx-1.18.0-zqjzv3prur46ptgbpx2mjj2ej3wkjjyx
+    lmod:
+      buildable: false
+      externals:
+      - spec: lmod@8.7.37%gcc@14.3.0+auto_swap~redirect build_system=autotools arch=linux-almalinux9-zen5
+        prefix: /share/Apps/zen25v1/gcc-14.3.0/lmod-8.7.37-dtgez6l3tpyesgnxs4cwso2spye6ygcg 
+  # MODULES
+  modules:
+    default:
+      roots:
+        lmod: ./lmod
+      arch_folder: false
+      lmod:
+        core_compilers:
+        - gcc@14.2.1
+        hierarchy:
+        - compiler
+        - mpi
+        exclude_implicits: true
+        hide_implicits: true
+        hash_length: 0
+        exclude:
+        #! - '%gcc@14.2.1'
+        - lmod
+        - python@3.11.9
+        - ^python@3.11.9
+        - font-util
+        - freetype
+        - libpng
+        - bzip2
+        - hwloc
+        - icu4c
+        - libevent
+        - libjpeg-turbo
+        - libtiff
+        - libtirpc
+        - libx11
+        - libxcb
+        - libxmu
+        - libxt
+        - lz4
+        - texinfo
+        - which
+        - zlib
+        - zlib-ng
+        include:
+        # we only compiled one thing with the system gcc@14.2.1, namely  gcc@14.2.0 but for some reason spack
+        #   has trouble including it here, so we use the hash, an external hash different than the one in the path
+        #! - gcc@14.2.0 +binutils /ytjbggm
+        #! - openmpi@5.0.5%gcc@14.2.0+atomics+cuda~debug~gpfs~internal-hwloc~internal-libevent~internal-pmix~java~lustre~memchecker+openshmem+romio+rsh~static~two_level_namespace+vt+wrapper-rpath
+        #!   build_system=autotools cuda_arch=75,80,86,89,90,90a fabrics=cma,hcoll,knem,ucx,xpmem
+        - gcc
+        - openmpi
+        #!   romio-filesystem=none schedulers=slurm
+        - intel-oneapi-compilers
+        - intel-oneapi-mpi
+        - build_system=python_pip ^python@3.13.0
+        - build_system=python_pip ^python@3.9.19
+        - r@4.4.1 ^python@3.11.9
+        - ^r
+        core_specs:
+        - gcc@14.2.1
+        #! - openmpi@5.0.5
+        #! - gcc@14.2.0 +binutils+bootstrap~graphite~mold~nvptx~piclibs~profiled~strip
+        #!   build_system=autotools build_type=RelWithDebInfo languages='c,c++,fortran'
+        #! - openmpi@5.0.5%gcc@14.2.0+atomics+cuda~debug~gpfs~internal-hwloc~internal-libevent~internal-pmix~java~lustre~memchecker+openshmem+romio+rsh~static~two_level_namespace+vt+wrapper-rpath
+        #!   build_system=autotools cuda_arch=75,80,86,89,90,90a fabrics=cma,hcoll,knem,ucx,xpmem
+        #!   romio-filesystem=none schedulers=slurm
+        - ^r
+        - build_system=python_pip ^python@3.13.0
+        - build_system=python_pip ^python@3.9.19
+        - py-pip
+        - py-wheel
+        - py-setuptools
+        - py-pybind11
+        projections:
+          gromacs +cufftmp: gromacs/{version}-cufftmp
+          gromacs +plumed: gromacs/{version}-plumed
+          build_system=python_pip ^python ^mpi: py-{^python.version}-{compiler.name}-{compiler.version}-{^mpi.name}-{^mpi.version}/{name}/{version}
+          build_system=python_pip ^python: py-{^python.version}-{compiler.name}-{compiler.version}/{name}/{version}
+          ^r ^mpi: r-{^r.version}-{compiler.name}-{compiler.version}-{^mpi.name}-{^mpi.version}/{name}/{version}
+          ^r: r-{^r.version}-{compiler.name}-{compiler.version}/{name}/{version}
+          py-pip ^python: py-{^python.version}-{compiler.name}-{compiler.version}/{name}/{version}
+          py-setuptools ^python: py-{^python.version}-{compiler.name}-{compiler.version}/{name}/{version}
+          py-wheel ^python: py-{^python.version}-{compiler.name}-{compiler.version}/{name}/{version}
+          py-pybind11 ^python: py-{^python.version}-{compiler.name}-{compiler.version}/{name}/{version}
+          namd +cuda: namd/{version}-gpu
+          all: '{name}/{version}'
+          intel-oneapi-mkl threads=tbb: intel-oneapi-mkl/{version}-tbb
+          intel-oneapi-mkl threads=openmp: intel-oneapi-mkl/{version}
+          nccl ^cuda@12.4.1: nccl/{version}-cuda-12.4
+        #! openmpi:
+        #!   environment:
+        #!     prepend_path:
+        #!       LD_LIBRARY_PATH: /share/Apps/ice24v2/gcc-12.4.0/pmix-5.0.3-vznkg3ub32tnrhxslsth5imfgbqo63yq/lib
+        all:
+          autoload: all
+          environment:
+            set:
+              LURC_{name}_DIR: '{prefix}'
+      prefix_inspections:
+        ./include:
+        - C_INCLUDE_PATH
+        - CPLUS_INCLUDE_PATH
+  # specs in a superspec format, using list of lists
+  specs: !flatten
+  # MIDDLEWARE 
+  # gcc
+  - - - !cat
+        - *gcc1430-explicit
+  # gcc openmpi
+  - - - *ompi5-pin          
+  # gcc cuda
+  - - - *cuda129-gcc          
+  # gcc
+  - - !compiled
+      compiler: &gcc gcc@14.3.0
+      arch: &arch arch=linux-almalinux9-zen5
+      specs:
+      - &git git@2.47.0
+      - &tbb intel-oneapi-tbb@2022.0.0
+      - &cmake cmake@3.30.5 ~doc +ncurses +ownlibs ~qtgui
+      - &zlib zlib@1.3.1 +optimize+pic+shared build_system=makefile
+      - &zlib-ng zlib-ng@2.2.1 +compat +new_strategies +opt +pic +shared
+      - &lz4 lz4@1.10.0 libs=shared,static +pic +ipo
+      - &bzip bzip2@1.0.8 ~debug~pic+shared build_system=generic
+      # note that this produces a "hashpin" we use below to compile python
+      - libxcb@1.17.0
+      - !cat &openblas
+        - openblas@0.3.28 
+        - ~bignuma ~consistent_fpcsr +fortran ~ilp64 +locking +pic +shared
+      # anaconda is critical but installation was taking over an hour
+      #   so we discard in favor of miniconda: anaconda3@2023.09-0 
+      # note that we have modifications to the condarc, see rcnotes/doc/rc-hpc-software.md
+      - miniconda3@24.7.1
+      # miniforge allows us to avoid breaking the Continuum Inc and Anaconda TOS
+      - miniforge3@24.3.0-0 +mamba
+      # GNU parallel
+      - parallel
+      # added on 2025.03.21
+      - bc
+  # gcc openmpi
+  - - !builder
+      suffix: !spec {compiler: *gcc}
+      tail: &ompi5 !cat
+      - openmpi@5.0.5 
+      - !spec {compiler: *gcc}
+      specs:
+      - osu-micro-benchmarks@7.4
+  # gcc openmpi middleware
+  - - !builder
+      suffix: !spec {compiler: *gcc}
+      tail: *ompi5-pin
+      specs:
+      - !cat &hdf5 
+        - hdf5@1.14.5 +cxx +fortran +hl +mpi +szip
+      - !cat &netcdf-c
+        - netcdf-c@4.9.2
+        - !spec {depends: *hdf5}
+      - !cat
+        - &netcdf-cxx netcdf-cxx4@4.3.1
+        - !spec {depends: *netcdf-c}
+      - &mkl-tbb !cat 
+        - &mkl !cat
+          - intel-oneapi-mkl@2024.2.2
+          - +cluster +envmods ~ilp64 +gfortran +shared threads=tbb mpi_family=openmpi
+        - !spec {depends: *tbb}
+      - !cat &mkl-omp
+        - intel-oneapi-mkl@2024.2.2
+        - +cluster +envmods +gfortran ~ilp64 +shared threads=openmp mpi_family=openmpi
+      - &netcdf-fortran !cat
+        - netcdf-fortran@4.6.1 ~doc +pic +shared
+        - !spec {depends: *netcdf-c}
+      - &parallel-netcdf parallel-netcdf@1.12.3 ~burstbuffer +cxx +fortran +pic +shared
+      - &fftw !cat
+        - fftw@3.3.10
+          +mpi +openmp +pfft_patches +shared
+          precision=float,double
+  # gcc python
+  - - - !cat &python
+        - &python-base python@3.13.0
+        - !spec {compiler: *gcc, arch: *arch}
+        - &python-opts-all
+          +bz2
+          +ctypes
+          +dbm
+          ~debug
+          +libxml2
+          +lzma
+          ~nis
+          +optimizations
+          +pic
+          +pyexpat
+          +pythoncmd
+          +readline
+          +shared
+          +sqlite3
+          +ssl
+          ~tkinter
+          +uuid
+          +zlib
+  # gcc python py-cython
+  - - - &py-cython-hashpin !cat
+        - py-cython@3.0.11
+        # PAUSE here for the hashpin
+        - !spec
+          depends: &python-hashpin python@3.13.0 /s7hb2k7
+  # gcc python openmpi packages
+  - - - !cat &py-numpy
+        - &py-numpy-ver py-numpy@2.1.2
+        - !spec {depends: *mkl-tbb}
+        - !spec {depends: *py-cython-hashpin}
+      - !cat &py-scipy
+        - &py-scipy-ver py-scipy@1.14.1
+        - !spec {depends: *py-numpy}

@@ -83,7 +83,7 @@ spack:
       buildable: false
       externals:
       - spec: lmod@8.7.37%gcc@12.4.0+auto_swap~redirect build_system=autotools arch=linux-almalinux9-cascadelake
-        prefix: /share/Apps/cascade24v2/gcc-12.4.0/openmpi-5.0.5-5recouusbwrv2pq4gklwas4anpisfvnp
+        prefix: /share/Apps/zen25v1/gcc-14.3.0/lmod-8.7.37-dtgez6l3tpyesgnxs4cwso2spye6ygcg
     cuda:  
       buildable: false
       externals:
