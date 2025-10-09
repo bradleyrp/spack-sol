@@ -24,7 +24,7 @@ class Orca(Package):
     license("LGPL-2.1-or-later")
 
     # rpb222 adds this
-    version("6.1.0", sha256="3df2d25c36fe7e49f1c301b3ad6cfc9b837a370fd3cee31275a86ecd291ca944")
+    version("6.1.0", sha256="d9f4ab6a772bc974b358ca7e024fa51fdcffbf2b78c69be3945b3dae50da6046")
 
     version(
         "avx2-6.0.0", sha256="02c21294efe7b1b721e26cb90f98ee15ad682d02807201b7d217dfe67905a2fd"
@@ -47,6 +47,8 @@ class Orca(Package):
         "5.0.4": "4.1.2",
         "6.0.0": "4.1.6",
         "avx2-6.0.0": "4.1.6",
+        # rpb222 adds this but cannot easily find the requirements on their website!
+        "6.1.0": "4.1.8",
     }
     for orca_version, openmpi_version in openmpi_versions.items():
         depends_on(
