@@ -47,8 +47,8 @@ class Orca(Package):
         "5.0.4": "4.1.2",
         "6.0.0": "4.1.6",
         "avx2-6.0.0": "4.1.6",
-        # rpb222 adds this but cannot easily find the requirements on their website!
-        "6.1.0": "4.1.8",
+        # rpb222 adds this to override things per OSC. original is 4.1.8
+        "6.1.0": "5.0.5",
     }
     for orca_version, openmpi_version in openmpi_versions.items():
         depends_on(

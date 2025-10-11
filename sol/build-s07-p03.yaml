@@ -270,6 +270,14 @@ spack:
           ~tkinter
           +uuid
           +zlib
+      # dev: for some unknown reason this was not required on build-s04-p03.yaml
+      #   but these packages are hidden because implicit otherwise. this might have
+      #   been a downstream consequences of some packages failing to install properly,
+      #   but it seems that making sure you have something like py-cython fixes the
+      #   problem by ensuring that there is a need for py-pip to be explictly added
+      #   to the module tree
+      - py-pip 
+      - py-setuptools
   # gcc python py-cython
   - - - &py-cython-hashpin !cat
         - py-cython@3.0.11
@@ -284,3 +292,22 @@ spack:
       - !cat &py-scipy
         - &py-scipy-ver py-scipy@1.14.1
         - !spec {depends: *py-numpy}
+  - - - !cat
+        - nccl@2.28.3-1
+          cuda_arch=75,80,86,89,90,90a
+        - !spec {compiler: *gcc, arch: *arch}
+        - !spec {depends: *cuda129-gcc}
+  - - - &boost !cat
+        - boost@1.86.0
+          +atomic +charconv +chrono ~clanglibcpp
+          ~cobalt +container +context +contract +coroutine +date_time
+          ~debug +exception +fiber +filesystem +graph +graph_parallel
+          +icu +iostreams +json +locale +log +math +mpi +multithreaded +nowide ~numpy
+          ~pic +program_options +python +random +regex +serialization +shared +signals
+          ~singlethreaded +stacktrace +system ~taggedlayout +test +thread +timer
+          ~type_erasure +url ~versionedlayout +wave 
+          build_system=generic cxxstd=11 visibility=hidden
+          # note that it took a while to identify that +numpy, which is deprecated anyway
+          #   was forcing additional python dependencies
+        - !spec {depends: *python-hashpin}
+
